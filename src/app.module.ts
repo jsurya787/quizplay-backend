@@ -1,5 +1,5 @@
 import { Module } from '@nestjs/common';
-import { ConfigModule, ConfigService } from '@nestjs/config';
+import { ConfigModule } from '@nestjs/config';
 import { MongooseModule } from '@nestjs/mongoose';
 
 import { AppController } from './app.controller';
@@ -13,38 +13,32 @@ import { QuizPlayerModule } from './quiz-player/quiz-player.module';
 
 @Module({
   imports: [
-    // Global ENV
+    // ENV (still useful for other vars)
     ConfigModule.forRoot({
       isGlobal: true,
-      envFilePath: '.env', 
+      envFilePath: '.env',
     }),
 
-    // MongoDB
-    MongooseModule.forRootAsync({
-      imports: [ConfigModule],
-      inject: [ConfigService],
-      useFactory: (config: ConfigService) => ({
-        uri: config.get<string>('MONGO_URI'),
-        // 🔑 Important options
-        serverSelectionTimeoutMS: 30000, // wait longer for Atlas resume
+    // MongoDB (hardcoded for testing)
+    MongooseModule.forRoot(
+      'mongodb+srv://jaisuryakataria:KVYUD8HA2zQu9RF2@cluster0.592you1.mongodb.net/quizplay?retryWrites=true&w=majority',
+      {
+        serverSelectionTimeoutMS: 30000,
         socketTimeoutMS: 45000,
         connectTimeoutMS: 30000,
-        // Stable connection
         maxPoolSize: 10,
         minPoolSize: 1,
-
         retryWrites: true,
         retryReads: true,
-      }),
-    }),
-
+      },
+    ),
 
     AuthModule,
     UserModule,
     QuizModule,
     QuizPlayerModule,
     SubjectsModule,
-    ChaptersModule
+    ChaptersModule,
   ],
   controllers: [AppController],
   providers: [AppService],
