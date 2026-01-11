@@ -45,7 +45,6 @@ async verifyOtpAndLogin(phone: string, otp: string) {
     userId: user._id,
     role: user.role,
   });
-
   return { accessToken, user };
 }
 
