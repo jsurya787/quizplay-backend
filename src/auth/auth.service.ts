@@ -35,7 +35,8 @@ export class AuthService {
           client_secret: process.env.GOOGLE_CLIENT_SECRET!,
           redirect_uri:
             process.env.GOOGLE_REDIRECT_URI ||
-            'http://localhost:4200/auth/google/callback',
+            'https://quizplay.co.in/auth/google/callback',
+            //'http://localhost:4200/auth/google/callback',
           grant_type: 'authorization_code',
         }),
         { headers: { 'Content-Type': 'application/x-www-form-urlencoded' } },
