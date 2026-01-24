@@ -5,10 +5,12 @@ import {
   Req,
   Res,
   UnauthorizedException,
+  UseGuards,
 } from '@nestjs/common';
 import { AuthService } from './auth.service';
 import { OtpService } from './otp/otp/otp.service';
 import type { Request, Response } from 'express';
+import { JwtAuthGuard } from './jwt/jwt/jwt-auth.guard';
 
 @Controller('auth')
 export class AuthController {
@@ -85,6 +87,37 @@ export class AuthController {
     });
 
     return { accessToken, user };
+  }
+
+  // ============================
+  // LOGIN (OAuth Code)
+  // ============================
+  @Post('login')
+  async loginWithPassword(
+    @Body('email') email: string,
+    @Body('password') password: string,
+    @Res({ passthrough: true }) res: Response,
+  ) {
+    const { accessToken, refreshToken, user } = await this.authService.loginWithPassword(email, password);
+    res.cookie('refresh_token', refreshToken, {
+      httpOnly: true,
+      secure: false,          // true in prod HTTPS
+      sameSite: 'lax',
+      path: '/auth/refresh',
+      maxAge: 7 * 24 * 60 * 60 * 1000,
+    });
+
+    return { accessToken, user };
+  }
+
+  @Post('set-password')
+  @UseGuards(JwtAuthGuard)
+  async setPassword(
+    @Req() req: any,
+    @Body('password') password: string,
+  ) {
+    const userId = req.user.sub; // from JWT
+    return this.authService.setPassword(userId, password);
   }
 
   @Post('logout')

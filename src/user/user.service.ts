@@ -15,51 +15,67 @@ export class UserService {
   }
 
   findByEmail(email: string) {
-    return this.userModel.findOne({ email });
+    return this.userModel.findOne({ email }).select('+password');
   }
   
   async upsertByEmail(email: string, data: Partial<User>) {
-  return this.userModel.findOneAndUpdate(
-    { email },
-    { $set: data },
-    { new: true, upsert: true },
-  );
-}
+    return this.userModel.findOneAndUpdate(
+      { email },
+      { $set: data },
+      { new: true, upsert: true },
+    );
+  }
 
-async findOrCreateByGoogle(payload: any) {
-  let user = await this.userModel.findOne({
-    email: payload.email,
-  });
-
-  if (!user) {
-    user = await this.userModel.create({
-      name: payload.name,
+  async findOrCreateByGoogle(payload: any) {
+    let user = await this.userModel.findOne({
       email: payload.email,
-      googleId: payload.sub,
-      isVerified: true,
     });
-  } else if (!user.googleId) {
-    // 🔁 Merge OTP user with Google
-    user.googleId = payload.sub;
-    user.isVerified = true;
-    await user.save();
+
+    if (!user) {
+      user = await this.userModel.create({
+        name: payload.name,
+        email: payload.email,
+        googleId: payload.sub,
+        isVerified: true,
+      });
+    } else if (!user.googleId) {
+      // 🔁 Merge OTP user with Google
+      user.googleId = payload.sub;
+      user.isVerified = true;
+      await user.save();
+    }
+
+    return user;
   }
 
-  return user;
-}
+  async findOrCreateByPhone(phone: string) {
+    let user = await this.userModel.findOne({ phone });
 
-async findOrCreateByPhone(phone: string) {
-  let user = await this.userModel.findOne({ phone });
+    if (!user) {
+      user = await this.userModel.create({
+        phone,
+        isVerified: true,
+      });
+    }
 
-  if (!user) {
-    user = await this.userModel.create({
-      phone,
-      isVerified: true,
-    });
+    return user;
   }
 
-  return user;
-}
+  async updatePassword(userId: string, hashedPassword: string) {
+    return this.userModel.updateOne(
+      { _id: userId },
+      {
+        $set: {
+          password: hashedPassword,
+          authProvider: 'password', // optional but recommended
+        },
+      },
+    );
+  }
+
+  async findById(userId: string) {
+    return this.userModel.findById(userId);
+  }
 
 
 }

@@ -16,38 +16,62 @@ export class QuizService {
     private readonly quizModel: Model<QuizDocument>,
   ) {}
   // 📄 Get quizzes with limit (for quiz list page)
-  async findAll(limit?: number, skip?: number) {
-    const safeLimit =
-      limit && limit > 0 && limit <= 100 ? limit : 10;
+ async findAll(
+  limit?: number,
+  skip?: number,
+  search?: string,
+  subjectId?: string,
+  difficulty?: string,
+) {
+  const safeLimit =
+    limit && limit > 0 && limit <= 100 ? limit : 10;
 
-    const safeSkip = skip && skip >= 0 ? skip : 0;
+  const safeSkip = skip && skip >= 0 ? skip : 0;
 
-    const quizzes = await this.quizModel
-      .find({ isActive: true, status: 'published' }) // only published quizzes
-      .sort({ createdAt: -1 })
-      .skip(safeSkip)
-      .limit(safeLimit)
-      .select(
-        'title description difficulty timeLimit totalMarks questions createdAt'
-      )
-      .lean({ virtuals: true }); // ✅ REQUIRED for questionsCount
+  // ✅ BASE FILTER (existing)
+  const filter: any = {
+    isActive: true,
+    status: 'published',
+  };
 
-    const total = await this.quizModel.countDocuments({
-      isActive: true,
-      status: 'published',
-    });
-
-    return {
-      total,
-      limit: safeLimit,
-      skip: safeSkip,
-      data: quizzes.map(q => ({
-        ...q,
-        questionsCount: q.questions?.length || 0, // safety
-        questions: undefined, // never send questions list
-      })),
-    };
+  // 🔍 SEARCH (title)
+  if (search) {
+    filter.title = { $regex: search, $options: 'i' };
   }
+
+  // 📚 SUBJECT FILTER
+  if (subjectId) {
+    filter.subjectId = subjectId;
+  }
+
+  // 🎯 DIFFICULTY FILTER
+  if (difficulty) {
+    filter.difficulty = difficulty;
+  }
+
+  const quizzes = await this.quizModel
+    .find(filter)
+    .sort({ createdAt: -1 })
+    .skip(safeSkip)
+    .limit(safeLimit)
+    .select(
+      'title description difficulty timeLimit totalMarks questions createdAt'
+    )
+    .lean({ virtuals: true }); // ✅ REQUIRED for questionsCount
+
+  const total = await this.quizModel.countDocuments(filter);
+
+  return {
+    total,
+    limit: safeLimit,
+    skip: safeSkip,
+    data: quizzes.map(q => ({
+      ...q,
+      questionsCount: q.questions?.length || 0, // safety
+      questions: undefined, // 🔒 never send questions list
+    })),
+  };
+}
 
 
   // 🟡 Create Draft Quiz
@@ -87,6 +111,36 @@ export class QuizService {
 
     quiz.questions.push(dto as any);
     quiz.totalMarks += dto.marks;
+
+    await quiz.save();
+    return quiz;
+  }
+
+  // 🟡 Update Question
+  async updateQuestion(
+    quizId: string,
+    questionId: string, 
+    dto: AddQuestionDto,
+  ) {
+    const quiz = await this.quizModel.findById(quizId);
+    if (!quiz) throw new NotFoundException('Quiz not found');
+
+    const index = quiz.questions.findIndex(
+      q => q._id.toString() === questionId,
+    );
+
+    if (index === -1) {
+      throw new NotFoundException('Question not found');
+    }
+
+    quiz.questions[index].questionText = dto.questionText;
+    quiz.questions[index].marks = dto.marks;
+    quiz.questions[index].options = dto.options;
+
+    quiz.totalMarks = quiz.questions.reduce(
+      (sum, q) => sum + q.marks,
+      0,
+    );
 
     await quiz.save();
     return quiz;

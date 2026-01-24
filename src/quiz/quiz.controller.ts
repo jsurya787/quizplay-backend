@@ -6,6 +6,7 @@ import {
   Delete,
   Get,
   Query,
+  Patch,
 } from '@nestjs/common';
 import { QuizService } from './quiz.service';
 import { CreateQuizDto } from './create-quiz.dto';
@@ -21,18 +22,23 @@ export class QuizController {
   async findAll(
     @Query('limit') limit?: string,
     @Query('skip') skip?: string,
+    @Query('search') search?: string,
+    @Query('subjectId') subjectId?: string,
+    @Query('difficulty') difficulty?: string,
   ) {
-    const result = await this.quizService.findAll(
-      limit ? Number(limit) : undefined,
-      skip ? Number(skip) : undefined,
-    );
-
     return {
       success: true,
-      message: 'Quizzes fetched successfully',
-      ...result,
+      ...(await this.quizService.findAll(
+        limit ? Number(limit) : undefined,
+        skip ? Number(skip) : undefined,
+        search,
+        subjectId,
+        difficulty,
+      )),
     };
   }
+
+
 
 
   // 🟡 Create Draft Quiz
@@ -59,6 +65,27 @@ export class QuizController {
       data: quiz,
     };
   }
+
+  // Update Question 
+  @Patch(':quizId/questions/:questionId')
+  async updateQuestion(
+    @Param('quizId') quizId: string,
+    @Param('questionId') questionId: string,
+    @Body() dto: AddQuestionDto,
+  ) {
+    const quiz = await this.quizService.updateQuestion(
+      quizId,
+      questionId,
+      dto,
+    );
+
+    return {
+      success: true,
+      message: 'Question updated successfully',
+      data: quiz,
+    };
+  }
+
 
   // 🗑️ Delete Question
   @Delete(':quizId/questions/:questionId')

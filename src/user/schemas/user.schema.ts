@@ -28,6 +28,14 @@ export class User {
   })
   phone?: string;
 
+  // ✅ FIX IS HERE
+  @Prop({
+    type: String,
+    required: false,
+    select: false,   // 🔐 IMPORTANT: never return password by default
+  })
+  password?: string;
+
   // For Google authentication
   @Prop({
     unique: true,
