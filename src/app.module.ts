@@ -8,8 +8,8 @@ import { AuthModule } from './auth/auth.module';
 import { UserModule } from './user/user.module';
 import { QuizModule } from './quiz/quiz.module';
 import { SubjectsModule } from './subjects/subjects.module';
-import { ChaptersModule } from './chapters/chapters.module';
 import { QuizPlayerModule } from './quiz-player/quiz-player.module';
+import { SubjectInfoModule } from './subject-infos/subject-info.module';
 
 @Module({
   imports: [
@@ -38,7 +38,7 @@ import { QuizPlayerModule } from './quiz-player/quiz-player.module';
     QuizModule,
     QuizPlayerModule,
     SubjectsModule,
-    ChaptersModule,
+    SubjectInfoModule,
   ],
   controllers: [AppController],
   providers: [AppService],

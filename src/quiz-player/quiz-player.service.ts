@@ -11,12 +11,21 @@ import {
   QuizAttemptDocument,
 } from './quiz-attempt.schema';
 
-// ✅ ADD THIS TYPE
 type QuestionResult = {
   questionId: Types.ObjectId;
+  question: string;
+
+  options: {
+    text: string;
+    isSelected: boolean;
+  }[];
+
   status: 'correct' | 'wrong' | 'skipped';
   marks: number;
+
+  correctOptionIndex: number;
 };
+
 
 @Injectable()
 export class QuizPlayerService {
@@ -104,88 +113,106 @@ export class QuizPlayerService {
   }
 
   // 🚀 Submit quiz
-  async submitQuiz(attemptId: string) {
-    const attempt = await this.attemptModel.findById(attemptId);
+async submitQuiz(attemptId: string) {
+  const attempt = await this.attemptModel.findById(attemptId);
 
-    if (!attempt || attempt.isSubmitted) {
-      throw new BadRequestException('Already submitted');
-    }
-
-    const quiz = await this.quizModel.findById(attempt.quizId);
-    if (!quiz) {
-      throw new NotFoundException('Quiz not found');
-    }
-
-    let score = 0;
-    let correct = 0;
-    let wrong = 0;
-    let skipped = 0;
-
-    // ✅ NOW TS IS HAPPY
-    const questionResults: QuestionResult[] = [];
-
-    for (const question of quiz.questions) {
-      const userAnswer = attempt.answers.find(
-        a => a.questionId.toString() === question._id.toString(),
-      );
-
-      if (!userAnswer || userAnswer.selectedOptionIndex === null) {
-        skipped++;
-        questionResults.push({
-          questionId: question._id,
-          status: 'skipped',
-          marks: 0,
-        });
-        continue;
-      }
-
-      const selectedOption =
-        question.options[userAnswer.selectedOptionIndex];
-
-      if (selectedOption?.isCorrect) {
-        correct++;
-        score += question.marks;
-        questionResults.push({
-          questionId: question._id,
-          status: 'correct',
-          marks: question.marks,
-        });
-      } else {
-        wrong++;
-        questionResults.push({
-          questionId: question._id,
-          status: 'wrong',
-          marks: 0,
-        });
-      }
-    }
-
-    const accuracy =
-      correct + wrong > 0
-        ? Math.round((correct / (correct + wrong)) * 100)
-        : 0;
-
-    attempt.score = score;
-    attempt.isSubmitted = true;
-    attempt.submittedAt = new Date();
-    attempt.result = {
-      correct,
-      wrong,
-      skipped,
-      accuracy,
-      questions: questionResults,
-    };
-
-    await attempt.save();
-
-    return {
-      totalMarks: quiz.totalMarks,
-      score,
-      correct,
-      wrong,
-      skipped,
-      accuracy,
-      questions: questionResults,
-    };
+  if (!attempt || attempt.isSubmitted) {
+    throw new BadRequestException('Already submitted');
   }
+
+  const quiz = await this.quizModel.findById(attempt.quizId);
+  if (!quiz) {
+    throw new NotFoundException('Quiz not found');
+  }
+
+  let score = 0;
+  let correct = 0;
+  let wrong = 0;
+  let skipped = 0;
+
+  const questionResults: QuestionResult[] = [];
+
+  for (const question of quiz.questions) {
+    const userAnswer = attempt.answers.find(
+      a => a.questionId.toString() === question._id.toString(),
+    );
+
+    const selectedIndex = userAnswer?.selectedOptionIndex ?? null;
+
+    const optionsResult = question.options.map((opt, index) => ({
+      text: opt.text,
+      isSelected: selectedIndex === index,
+    }));
+
+    const correctIndex = question.options.findIndex(o => o.isCorrect);
+
+    if (selectedIndex === null) {
+      skipped++;
+
+      questionResults.push({
+        questionId: question._id,
+        question: question.questionText,
+        options: optionsResult,
+        status: 'skipped',
+        marks: 0,
+        correctOptionIndex: correctIndex,
+      });
+      continue;
+    }
+
+    if (question.options[selectedIndex]?.isCorrect) {
+      correct++;
+      score += question.marks;
+
+      questionResults.push({
+        questionId: question._id,
+        question: question.questionText,
+        options: optionsResult,
+        status: 'correct',
+        marks: question.marks,
+        correctOptionIndex: correctIndex,
+      });
+    } else {
+      wrong++;
+
+      questionResults.push({
+        questionId: question._id,
+        question: question.questionText,
+        options: optionsResult,
+        status: 'wrong',
+        marks: 0,
+        correctOptionIndex: correctIndex,
+      });
+    }
+  }
+
+  const accuracy =
+    correct + wrong > 0
+      ? Math.round((correct / (correct + wrong)) * 100)
+      : 0;
+
+  attempt.score = score;
+  attempt.isSubmitted = true;
+  attempt.submittedAt = new Date();
+  attempt.result = {
+    correct,
+    wrong,
+    skipped,
+    accuracy,
+    questions: questionResults,
+  };
+
+  await attempt.save();
+
+  return {
+    totalMarks: quiz.totalMarks,
+    score,
+    correct,
+    wrong,
+    skipped,
+    accuracy,
+    questions: questionResults,
+  };
+}
+
 }

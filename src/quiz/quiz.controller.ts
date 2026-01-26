@@ -52,6 +52,18 @@ export class QuizController {
     };
   }
 
+    // 🗑️ Delete Quiz
+  @Delete(':quizId')
+  async deleteQuiz(
+    @Param('quizId') quizId: string,
+  ) {
+     await this.quizService.deleteQuiz(quizId);
+    return {
+      success: true,
+      message: 'Quiz removed successfully',
+    };
+  }
+
   // 🟡 Add / Save Question
   @Post(':quizId/questions')
   async addQuestion(

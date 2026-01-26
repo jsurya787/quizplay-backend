@@ -88,6 +88,11 @@ export class QuizService {
     });
   }
 
+  // delete quiz 
+  async deleteQuiz(quizId: string) {
+    return this.quizModel.findByIdAndDelete(quizId);
+  }
+
 
   // 🟡 Add Question
   async addQuestion(quizId: string, dto: AddQuestionDto) {
