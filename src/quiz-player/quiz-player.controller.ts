@@ -4,8 +4,11 @@ import {
   Post,
   Param,
   Body,
+  UseGuards,
+  Req,
 } from '@nestjs/common';
 import { QuizPlayerService } from './quiz-player.service';
+import { JwtAuthGuard } from 'src/auth/jwt/jwt/jwt-auth.guard';
 
 @Controller('quiz-player')
 export class QuizPlayerController {
@@ -43,5 +46,11 @@ export class QuizPlayerController {
   @Post(':attemptId/submit')
   async submit(@Param('attemptId') attemptId: string) {
     return this.service.submitQuiz(attemptId);
+  }
+
+  @UseGuards(JwtAuthGuard)
+  @Get('attempted/count')
+  async getAttemptedQuizzes(@Req() req: any) {
+    return this.service.getAttemptedQuizzesCount(req.user.sub);
   }
 }

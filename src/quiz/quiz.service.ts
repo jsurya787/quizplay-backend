@@ -75,7 +75,7 @@ export class QuizService {
 
 
   // 🟡 Create Draft Quiz
-  async createDraft(dto: CreateQuizDto) {
+  async createDraft(dto: CreateQuizDto, userId:string) {
     return await this.quizModel.create({
       title: dto.title,
       description: dto.description, // ✅ NEW
@@ -85,6 +85,7 @@ export class QuizService {
       status: 'draft',
       questions: [],
       totalMarks: 0,
+      createdBy: new Types.ObjectId(userId), // ✅ FIX
     });
   }
 
@@ -200,5 +201,16 @@ export class QuizService {
     await quiz.save();
 
     return quiz;
+  }
+
+  async getCreatedQuizzes(userId: string) {
+    const createdBy = new Types.ObjectId(userId);
+
+    const count = await this.quizModel.countDocuments({ createdBy });
+
+    return {
+      success: true,
+      data: count,
+    };
   }
 }

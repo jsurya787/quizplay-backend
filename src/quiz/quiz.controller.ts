@@ -7,10 +7,13 @@ import {
   Get,
   Query,
   Patch,
+  Req,
+  UseGuards,
 } from '@nestjs/common';
 import { QuizService } from './quiz.service';
 import { CreateQuizDto } from './create-quiz.dto';
 import { AddQuestionDto } from './add-question.dto';
+import { JwtAuthGuard } from 'src/auth/jwt/jwt/jwt-auth.guard';
 
 @Controller('quizzes')
 export class QuizController {
@@ -42,9 +45,22 @@ export class QuizController {
 
 
   // 🟡 Create Draft Quiz
+    @UseGuards(JwtAuthGuard)
   @Post()
-  async create(@Body() dto: CreateQuizDto) {
-    const quiz = await this.quizService.createDraft(dto);
+  async create(@Body() dto: CreateQuizDto, @Req() req: any) {
+    const userId = req.user.sub || '695f7eceebf73de912504bc3';
+    const quiz = await this.quizService.createDraft(dto, userId);
+    return {
+      success: true,
+      message: 'Quiz draft created',
+      data: quiz,
+    };
+  }
+
+  @Post('/public')
+  async createPublic(@Body() dto: CreateQuizDto, @Req() req: any) {
+    const userId = '695f7eceebf73de912504bc3';
+    const quiz = await this.quizService.createDraft(dto, userId);
     return {
       success: true,
       message: 'Quiz draft created',
@@ -123,4 +139,12 @@ export class QuizController {
       data: quiz,
     };
   }
+
+  @UseGuards(JwtAuthGuard)
+  @Get('createdByUser')
+  async getCreatedQuizzes(@Req() req: any) {
+    const userId = req.user.sub;
+    return this.quizService.getCreatedQuizzes(userId);
+  }
+
 }

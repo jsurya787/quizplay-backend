@@ -6,103 +6,67 @@ import {
   Delete,
   Body,
   Param,
-  HttpStatus,
-  HttpException,
+  UseGuards,
+  UsePipes,
+  ValidationPipe,
 } from '@nestjs/common';
 import { SubjectsService } from './subjects.service';
 
+import { JwtAuthGuard } from 'src/auth/jwt/jwt/jwt-auth.guard';
+import { RolesGuard } from 'src/auth/jwt/jwt/roles.guard';
+import { Role } from 'src/auth/role/roles.enum';
+import { Roles } from 'src/auth/role/roles.decorator';
+
+import { CreateSubjectDto } from './dto/create-subject.dto';
+import { UpdateSubjectDto } from './dto/update-subject.dto';
+
 @Controller('subjects')
+@UsePipes(
+  new ValidationPipe({
+    whitelist: true,
+    forbidNonWhitelisted: true,
+    transform: true,
+  }),
+)
 export class SubjectsController {
   constructor(private readonly subjectsService: SubjectsService) {}
 
   // ➕ Create Subject
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(Role.ADMIN)
   @Post()
-  async create(@Body() body: any) {
-    try {
-      const subject = await this.subjectsService.create(body);
-
-      return {
-        success: true,
-        message: 'Subject created successfully',
-        data: subject,
-      };
-    } catch (error) {
-      throw new HttpException(
-        {
-          success: false,
-          message: error?.message || 'Failed to create subject',
-        },
-        HttpStatus.BAD_REQUEST,
-      );
-    }
+  create(@Body() body: CreateSubjectDto) {
+    return this.subjectsService.create(body);
   }
 
   // 📄 Get All Subjects
   @Get()
-  async findAll() {
-    try {
-      const subjects = await this.subjectsService.findAll();
+  findAll() {
+    return this.subjectsService.findAll();
+  }
 
-      return {
-        success: true,
-        message: 'Subjects fetched successfully',
-        data: subjects,
-      };
-    } catch (error) {
-      throw new HttpException(
-        {
-          success: false,
-          message: 'Failed to fetch subjects',
-        },
-        HttpStatus.INTERNAL_SERVER_ERROR,
-      );
-    }
+  // 📄 Get Primary Subjects
+  @Get('primary')
+  findPrimarySubjects() {
+    return this.subjectsService.findPrimarySubjects();
   }
 
   // ✏️ Update Subject
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(Role.ADMIN)
   @Put(':id')
-  async update(
+  update(
     @Param('id') id: string,
-    @Body() body: any,
+    @Body() body: UpdateSubjectDto,
   ) {
-    try {
-      const updatedSubject = await this.subjectsService.update(id, body);
-
-      return {
-        success: true,
-        message: 'Subject updated successfully',
-        data: updatedSubject,
-      };
-    } catch (error) {
-      throw new HttpException(
-        {
-          success: false,
-          message: error?.message || 'Failed to update subject',
-        },
-        HttpStatus.BAD_REQUEST,
-      );
-    }
+    return this.subjectsService.update(id, body);
   }
 
   // 🗑️ Delete Subject
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(Role.ADMIN)
   @Delete(':id')
-  async remove(@Param('id') id: string) {
-    try {
-      const result = await this.subjectsService.remove(id);
-
-      return {
-        success: true,
-        message: 'Subject deleted successfully',
-        data: result,
-      };
-    } catch (error) {
-      throw new HttpException(
-        {
-          success: false,
-          message: error?.message || 'Failed to delete subject',
-        },
-        HttpStatus.BAD_REQUEST,
-      );
-    }
+  remove(@Param('id') id: string) {
+    return this.subjectsService.remove(id);
   }
 }

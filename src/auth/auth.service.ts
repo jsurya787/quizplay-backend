@@ -29,10 +29,18 @@ export class AuthService {
   // ============================
   // GOOGLE LOGIN
   // ============================
-  async loginWithGoogle(code: string) {
+  async loginWithGoogle(code: string,  host?: string) {
     try {
-      console.log("process.env.GOOGLE_CLIENT_ID --", process.env.GOOGLE_CLIENT_ID);
-      console.log("process.env.GOOGLE_REDIRECT_URI -->", process.env.GOOGLE_REDIRECT_URI);
+
+      let redirectUri: string;
+      if (host?.includes('quizplay.co.in')) {
+        redirectUri = 'https://quizplay.co.in/auth/google/callback';
+      } else if (host?.includes('www.quizplay.com')) {
+        redirectUri = 'https://www.quizplay.com/auth/google/callback';
+      } else {
+        redirectUri = 'http://localhost:4200/auth/google/callback';
+      }
+
       const tokenResponse = await axios.post(
         'https://oauth2.googleapis.com/token',
         qs.stringify({
@@ -41,8 +49,7 @@ export class AuthService {
           client_secret: process.env.GOOGLE_CLIENT_SECRET!,
           redirect_uri:
             process.env.GOOGLE_REDIRECT_URI ||
-            'https://quizplay.co.in/auth/google/callback',  
-            //'http://localhost:4200/auth/google/callback',
+            redirectUri,
           grant_type: 'authorization_code',
         }),
         { headers: { 'Content-Type': 'application/x-www-form-urlencoded' } },
@@ -78,10 +85,10 @@ export class AuthService {
     const userId = user._id.toString();
 
     const accessToken = await this.jwtService.signAsync(
-      { sub: userId, role: user.role },
+      { sub: userId, role: user.role, email: user.email },
       {
         secret: process.env.JWT_ACCESS_SECRET!,
-        expiresIn: '15m',
+        expiresIn: '24m',
       },
     );
 
@@ -105,18 +112,41 @@ export class AuthService {
         secret: process.env.JWT_REFRESH_SECRET!,
       });
 
+      const user = await this.userService.findById(payload.sub);
+      if (!user) {
+        throw new UnauthorizedException('User not found');
+      }
+
       const accessToken = await this.jwtService.signAsync(
-        { sub: payload.sub },
+        {
+          sub: user._id.toString(),
+          role: user.role,       // ✅ RE-ADD
+          email: user.email,     // ✅ RE-ADD
+        },
         {
           secret: process.env.JWT_ACCESS_SECRET!,
-          expiresIn: '15m',
+          expiresIn: '24m',
         },
       );
 
-      return { accessToken };
+      return {
+        accessToken,
+        user: this.buildUserData(user),
+      };
     } catch {
       throw new UnauthorizedException('Invalid refresh token');
     }
+  }
+
+
+  private buildUserData(user: any) {
+    return {
+      id: user._id,
+      name: user.name,
+      email: user.email,
+    // picture: user.picture,
+      role: user.role || 'user',
+    };
   }
 
   // ============================

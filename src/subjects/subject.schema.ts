@@ -9,7 +9,16 @@ export class Subject {
   name: string; // Math, Physics, Chemistry
 
   @Prop({ trim: true })
+  subjectClass?: string;
+
+  @Prop({ trim: true })
   description?: string;
+
+  @Prop({ trim: true })
+  keyPoints?: Array<string>;
+
+  @Prop({ default: true })
+  isPrimary?: boolean;
 
   @Prop({ default: true })
   isActive: boolean;

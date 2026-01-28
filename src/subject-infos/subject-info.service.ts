@@ -134,8 +134,6 @@ async getSubjectPage(subjectId: string) {
       },
     };
   } catch (error) {
-    console.error('getSubjectPage error:', error);
-
     return {
       success: false,
       message: 'Failed to fetch subject page',

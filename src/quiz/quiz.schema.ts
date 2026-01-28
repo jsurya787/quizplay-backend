@@ -90,6 +90,14 @@ export class Quiz {
 
   @Prop({ default: true })
   isActive: boolean;
+
+  @Prop({
+    type: Types.ObjectId,
+    ref: 'User',
+    required: true,
+  })
+  createdBy: Types.ObjectId;
+
 }
 
 export type QuizDocument = Quiz & Document;

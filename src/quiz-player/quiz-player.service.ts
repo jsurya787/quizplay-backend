@@ -215,4 +215,17 @@ async submitQuiz(attemptId: string) {
   };
 }
 
+  async getAttemptedQuizzesCount(userId: string) {
+    const userObjectId = new Types.ObjectId(userId);
+
+    const count = await this.attemptModel.countDocuments({
+      userId: userObjectId,
+    });
+
+    return {
+      success: true,
+      count: count,
+    };
+  }
+
 }
