@@ -29,17 +29,23 @@ export class AuthService {
   // ============================
   // GOOGLE LOGIN
   // ============================
-  async loginWithGoogle(code: string) {
+  async loginWithGoogle(code: string, host: string) {
     try {
+      let redirectUri = 'http://localhost:4200/auth/google/callback';
+      if (host.includes('quizplay.co.in')) {
+        redirectUri = 'https://quizplay.co.in/auth/google/callback';
+      }else if (host.includes('www.quizplay.co.in')) {
+        redirectUri = 'https://www.quizplay.co.in/auth/google/callback';
+      }
       const tokenResponse = await axios.post(
         'https://oauth2.googleapis.com/token',
         qs.stringify({
           code,
           client_id: process.env.GOOGLE_CLIENT_ID!,
           client_secret: process.env.GOOGLE_CLIENT_SECRET!,
-          redirect_uri:
+          redirect_uri: redirectUri,
            // process.env.GOOGLE_REDIRECT_URI ||
-            'https://quizplay.co.in/auth/google/callback',  
+           // 'https://quizplay.co.in/auth/google/callback',  
             //'http://localhost:4200/auth/google/callback',
           grant_type: 'authorization_code',
         }),
