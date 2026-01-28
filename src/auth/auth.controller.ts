@@ -26,17 +26,11 @@ export class AuthController {
   async loginWithGoogle(
     @Body('code') code: string,
     @Res({ passthrough: true }) res: Response,
-    @Req() req: Request
+    @Req() req: Request,
   ) {
-const rawHost =
-  (req.headers['x-forwarded-host'] as string | undefined) ??
-  req.headers.host;
-
-const host = rawHost?.split(',')[0]?.trim();
-console.log("host ------------>", host);
+    console.log("host------------>", req.headers.host);
     const { accessToken, refreshToken, user } =
-      await this.authService.loginWithGoogle(code, host);
-
+      await this.authService.loginWithGoogle(code);
     // 🍪 SET REFRESH TOKEN AS HTTP-ONLY COOKIE
     res.cookie('refresh_token', refreshToken, {
       httpOnly: true,
