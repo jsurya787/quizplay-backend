@@ -28,8 +28,12 @@ export class AuthController {
     @Res({ passthrough: true }) res: Response,
     @Req() req: Request
   ) {
-    const host = (req.headers['x-forwarded-host'] as string | undefined) ?? req.headers.host;
-    console.log("host ------------------->", host);
+const rawHost =
+  (req.headers['x-forwarded-host'] as string | undefined) ??
+  req.headers.host;
+
+const host = rawHost?.split(',')[0]?.trim();
+console.log("host ------------>", host);
     const { accessToken, refreshToken, user } =
       await this.authService.loginWithGoogle(code, host);
 
