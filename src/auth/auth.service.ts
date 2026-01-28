@@ -31,12 +31,14 @@ export class AuthService {
   // ============================
   async loginWithGoogle(code: string, host: string) {
     try {
+      console.log('host---->', host);
       let redirectUri = 'http://localhost:4200/auth/google/callback';
       if (host.includes('quizplay.co.in')) {
         redirectUri = 'https://quizplay.co.in/auth/google/callback';
       }else if (host.includes('www.quizplay.co.in')) {
         redirectUri = 'https://www.quizplay.co.in/auth/google/callback';
       }
+      console.log('redirectUri------>', redirectUri)
       const tokenResponse = await axios.post(
         'https://oauth2.googleapis.com/token',
         qs.stringify({
