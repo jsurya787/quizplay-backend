@@ -29,6 +29,7 @@ export class AuthController {
     @Req() req: Request
   ) {
     const host = (req.headers['x-forwarded-host'] as string | undefined) ?? req.headers.host;
+    console.log("host ------------------->", host);
     const { accessToken, refreshToken, user } =
       await this.authService.loginWithGoogle(code, host);
 
