@@ -41,6 +41,8 @@ export class AuthService {
         redirectUri = 'http://localhost:4200/auth/google/callback';
       }
 
+      console.log("redirectUri ----------->", redirectUri);
+
 
       const tokenResponse = await axios.post(
         'https://oauth2.googleapis.com/token',
