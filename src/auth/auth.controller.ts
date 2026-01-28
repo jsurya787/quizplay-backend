@@ -28,7 +28,7 @@ export class AuthController {
     @Res({ passthrough: true }) res: Response,
     @Req() req: Request,
   ) {
-    console.log("host------------>", req.headers.host);
+    console.log("host------------>", req.headers['x-client-origin']);
     const { accessToken, refreshToken, user } =
       await this.authService.loginWithGoogle(code);
     // 🍪 SET REFRESH TOKEN AS HTTP-ONLY COOKIE
