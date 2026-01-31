@@ -41,11 +41,8 @@ export class QuizController {
     };
   }
 
-
-
-
   // 🟡 Create Draft Quiz
-    @UseGuards(JwtAuthGuard)
+  @UseGuards(JwtAuthGuard)
   @Post()
   async create(@Body() dto: CreateQuizDto, @Req() req: any) {
     const userId = req.user.sub || '695f7eceebf73de912504bc3';
@@ -64,6 +61,17 @@ export class QuizController {
     return {
       success: true,
       message: 'Quiz draft created',
+      data: quiz,
+    };
+  }
+
+ @Patch(':quizId/public')
+  async updatePublic(@Param('quizId') quizId: string, @Body() dto: CreateQuizDto, @Req() req: any) {
+    const userId = '695f7eceebf73de912504bc3';
+    const quiz = await this.quizService.updateDraft(quizId, dto, userId);
+    return {
+      success: true,
+      message: 'Quiz draft updated',
       data: quiz,
     };
   }

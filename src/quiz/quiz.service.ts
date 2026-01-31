@@ -89,6 +89,22 @@ export class QuizService {
     });
   }
 
+  // 🟡 Update Draft Quiz
+  async updateDraft(quizId: string, dto: CreateQuizDto, userId: string) {
+    const quiz = await this.quizModel.findOne({
+      _id: quizId,
+     // createdBy: new Types.ObjectId(userId),
+      status: 'draft',
+    });
+
+    if (!quiz) {
+      throw new NotFoundException('Quiz not found or not owned by user');
+    }
+
+    Object.assign(quiz, dto);
+    return await quiz.save();
+  }
+
   // delete quiz 
   async deleteQuiz(quizId: string) {
     return this.quizModel.findByIdAndDelete(quizId);
