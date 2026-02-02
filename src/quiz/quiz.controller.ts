@@ -102,6 +102,20 @@ export class QuizController {
     };
   }
 
+  // 🟡 Add Multiple questions  / Save Question
+  @Post(':quizId/questions/bulk')
+  async addBulkQuestions(
+    @Param('quizId') quizId: string,
+    @Body() dto: AddQuestionDto [],
+  ) {
+    const quiz = await this.quizService.addBulkQuestions(quizId, dto);
+    return {
+      success: true,
+      message: 'All Question added successfully',
+      data: quiz,
+    };
+  }
+
   // Update Question 
   @Patch(':quizId/questions/:questionId')
   async updateQuestion(

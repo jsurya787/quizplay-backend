@@ -138,6 +138,35 @@ export class QuizService {
     return quiz;
   }
 
+  // Add Bulk Questions
+  async addBulkQuestions(quizId: string, dtos: AddQuestionDto[]) {
+    if (!Types.ObjectId.isValid(quizId)) {
+      throw new BadRequestException('Invalid quiz id');
+    }
+
+    const quiz = await this.quizModel.findOne({
+      _id: quizId,
+      status: 'draft',
+    });
+
+    if (!quiz) {
+      throw new NotFoundException('Quiz not found or already published');
+    }
+
+    for (const dto of dtos) {
+      const correctOptions = dto.options.filter(o => o.isCorrect);
+      if (correctOptions.length !== 1) {
+        throw new BadRequestException('Exactly one correct option is required for each question');
+      }
+
+      quiz.questions.push(dto as any);
+      quiz.totalMarks += dto.marks;
+    }
+
+    await quiz.save();
+    return quiz;
+  }
+
   // 🟡 Update Question
   async updateQuestion(
     quizId: string,
