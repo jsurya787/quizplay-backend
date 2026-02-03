@@ -10,6 +10,7 @@ import { QuizModule } from './quiz/quiz.module';
 import { SubjectsModule } from './subjects/subjects.module';
 import { QuizPlayerModule } from './quiz-player/quiz-player.module';
 import { SubjectInfoModule } from './subject-infos/subject-info.module';
+import { NotesModule } from './notes/notes.module';
 
 @Module({
   imports: [
@@ -39,6 +40,7 @@ import { SubjectInfoModule } from './subject-infos/subject-info.module';
     QuizPlayerModule,
     SubjectsModule,
     SubjectInfoModule,
+    NotesModule
   ],
   controllers: [AppController],
   providers: [AppService],
