@@ -8,45 +8,65 @@ import { Model, Types } from 'mongoose';
 import { Quiz, QuizDocument } from './quiz.schema';
 import { CreateQuizDto } from './create-quiz.dto';
 import { AddQuestionDto } from './add-question.dto';
+import { UserService } from 'src/user/user.service';
 
 @Injectable()
 export class QuizService {
   constructor(
+    private readonly userService: UserService,
     @InjectModel(Quiz.name)
     private readonly quizModel: Model<QuizDocument>,
   ) {}
   // 📄 Get quizzes with limit (for quiz list page)
- async findAll(
+async findAll(
   limit?: number,
   skip?: number,
   search?: string,
   subjectId?: string,
   difficulty?: string,
+  createdByMe?: string,
 ) {
-  const safeLimit =
-    limit && limit > 0 && limit <= 100 ? limit : 10;
-
+  const safeLimit = limit && limit > 0 && limit <= 100 ? limit : 10;
   const safeSkip = skip && skip >= 0 ? skip : 0;
 
-  // ✅ BASE FILTER (existing)
   const filter: any = {
-    isActive: true,
     status: 'published',
   };
 
-  // 🔍 SEARCH (title)
+  // 🔍 SEARCH
   if (search) {
     filter.title = { $regex: search, $options: 'i' };
   }
 
-  // 📚 SUBJECT FILTER
+  // 📚 SUBJECT
   if (subjectId) {
     filter.subjectId = subjectId;
   }
 
-  // 🎯 DIFFICULTY FILTER
+  // 🎯 DIFFICULTY
   if (difficulty) {
     filter.difficulty = difficulty;
+  }
+
+  // 👤 CREATED BY ME (overrides admin filter if present)
+  if (createdByMe) {
+    filter.createdBy = new Types.ObjectId(createdByMe);
+  } else {
+    // 👑 ONLY ADMIN QUIZZES
+    const admins = await this.userService.getListOfAdmins();
+
+    if (!admins.length) {
+      return {
+        total: 0,
+        limit: safeLimit,
+        skip: safeSkip,
+        data: [],
+      };
+    }
+
+    filter.createdBy = {
+      $in: admins.map(id => new Types.ObjectId(id)),
+    };
   }
 
   const quizzes = await this.quizModel
@@ -57,7 +77,7 @@ export class QuizService {
     .select(
       'title description difficulty timeLimit totalMarks questions createdAt'
     )
-    .lean({ virtuals: true }); // ✅ REQUIRED for questionsCount
+    .lean({ virtuals: true });
 
   const total = await this.quizModel.countDocuments(filter);
 
@@ -67,8 +87,8 @@ export class QuizService {
     skip: safeSkip,
     data: quizzes.map(q => ({
       ...q,
-      questionsCount: q.questions?.length || 0, // safety
-      questions: undefined, // 🔒 never send questions list
+      questionsCount: q.questions?.length || 0,
+      questions: undefined,
     })),
   };
 }

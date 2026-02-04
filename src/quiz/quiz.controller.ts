@@ -28,6 +28,7 @@ export class QuizController {
     @Query('search') search?: string,
     @Query('subjectId') subjectId?: string,
     @Query('difficulty') difficulty?: string,
+    @Query('createdByMe') createdByMe?: string,
   ) {
     return {
       success: true,
@@ -37,6 +38,7 @@ export class QuizController {
         search,
         subjectId,
         difficulty,
+        createdByMe 
       )),
     };
   }
