@@ -3,8 +3,8 @@ import {
   IsOptional,
   IsBoolean,
   IsArray,
-  ArrayNotEmpty,
 } from 'class-validator';
+import { Transform } from 'class-transformer';
 
 export class CreateSubjectDto {
   @IsString()
@@ -18,15 +18,25 @@ export class CreateSubjectDto {
   description?: string;
 
   @IsOptional()
+  @Transform(({ value }) => {
+    if (Array.isArray(value)) return value;
+    try {
+      return JSON.parse(value);
+    } catch {
+      return [];
+    }
+  })
   @IsArray()
   @IsString({ each: true })
   keyPoints?: string[];
 
   @IsOptional()
+  @Transform(({ value }) => value === 'true' || value === true)
   @IsBoolean()
   isPrimary?: boolean;
 
   @IsOptional()
+  @Transform(({ value }) => value === 'true' || value === true)
   @IsBoolean()
   isActive?: boolean;
 }

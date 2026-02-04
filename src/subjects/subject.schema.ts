@@ -15,6 +15,10 @@ export class Subject {
   description?: string;
 
   @Prop({ trim: true })
+ logoUrl?: string;
+
+
+  @Prop({ trim: true })
   keyPoints?: Array<string>;
 
   @Prop({ default: true })

@@ -18,7 +18,7 @@ export class SubjectsService {
   ) {}
 
   // ➕ Create Subject
-  async create(dto: CreateSubjectDto) {
+  async create(dto: CreateSubjectDto & { logoUrl?: string }) {
     const exists = await this.subjectModel.findOne({
       name: dto.name,
       isActive: true,
@@ -36,6 +36,7 @@ export class SubjectsService {
       data: subject,
     };
   }
+
 
   // 📄 Get All Active Subjects
   async findAll() {
