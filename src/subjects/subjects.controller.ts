@@ -64,7 +64,7 @@ export class SubjectsController {
     @UploadedFile() file?: Express.Multer.File,
   ) {
     const logoUrl: any = file
-      ? `https://quizplay.api.co.in/uploads/subjects/${file.filename}`
+      ? `https://api.quizplay.co.in/uploads/subjects/${file.filename}`
       : null;
 
     return this.subjectsService.create({
@@ -107,7 +107,7 @@ export class SubjectsController {
     @UploadedFile() file?: Express.Multer.File,
   ) {
     const logoUrl = file
-      ? `https://quizplay.api.co.in/uploads/subjects/${file.filename}`
+      ? `https://api.quizplay.co.in/uploads/subjects/${file.filename}`
       : undefined;
 
     return this.subjectsService.update(id, {
