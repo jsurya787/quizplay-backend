@@ -26,7 +26,7 @@ async findAll(
   difficulty?: string,
   createdByMe?: string,
 ) {
-  const safeLimit = limit && limit > 0 && limit <= 100 ? limit : 10;
+  const safeLimit = limit && limit > 0 && limit <= 100 ? limit : 20;
   const safeSkip = skip && skip >= 0 ? skip : 0;
 
   const filter: any = {
