@@ -11,6 +11,9 @@ import axios from 'axios';
 import * as qs from 'qs';
 import * as bcrypt from 'bcrypt';
 import { BadRequestException } from '@nestjs/common';
+import { OtpService } from './otp/otp/otp.service';
+import { SignupDto } from './dto/signup.dto';
+
 const SALT_ROUNDS = 10;
 
 
@@ -24,6 +27,7 @@ export class AuthService {
   constructor(
     private readonly jwtService: JwtService,
     private readonly userService: UserService,
+    private readonly otpService: OtpService,
   ) {}
 
   // ============================
@@ -72,7 +76,7 @@ export class AuthService {
       }
 
       const user = await this.userService.findOrCreateByGoogle(googlePayload);
-      return { ...(await this.generateTokens(user)), user };
+      return { ...(await this.generateTokens(user)), user: this.buildUserData(user) };
     } catch (error) {
       this.logger.error('Google login failed', error);
       throw new InternalServerErrorException('Google login failed');
@@ -147,15 +151,48 @@ export class AuthService {
       email: user.email,
     // picture: user.picture,
       role: user.role || 'user',
+      firstName: user.firstName,
+      lastName: user.lastName
     };
   }
 
   // ============================
-  // OTP LOGIN
+  // OTP LOGIN / SIGNUP
   // ============================
-  async verifyOtpAndLogin(phone: string, otp: string) {
-    const user = await this.userService.findOrCreateByPhone(phone);
-    return { ...(await this.generateTokens(user)), user };
+  async signup(sinedUpUser: SignupDto) {
+    const { email } = sinedUpUser;
+    const user = await this.userService.findOrCreateByEmailForSignup(sinedUpUser);
+
+    if (user.isVerified) {
+      throw new BadRequestException('Email already verified. Please login.');
+    }
+
+    await this.otpService.sendEmailOtp(email);
+
+    return {
+      success: true,
+      message: 'OTP sent to email',
+    };
+  }
+
+
+  async verifyOtpAndLogin(identifier: string, otp: string, type: 'phone' | 'email' = 'phone') {
+    // 1. Verify OTP
+    await this.otpService.verifyOtp(identifier, otp, type);
+
+    // 2. Find or Create User
+    let user;
+    if (type === 'email') {
+      user = await this.userService.findOrCreateByEmail(identifier);
+      if (!user.isVerified) {
+        await this.userService.markAsVerified(user._id.toString());
+      }
+    } else {
+      user = await this.userService.findOrCreateByPhone(identifier);
+    }
+
+    // 3. Generate Tokens
+    return { ...(await this.generateTokens(user)), user: this.buildUserData(user) };
   }
 
   async loginWithPassword(email: string, password: string) {
@@ -165,7 +202,7 @@ export class AuthService {
       throw new UnauthorizedException('Invalid email or password');
     }
 
-    return { ...(await this.generateTokens(user)), user };
+    return { ...(await this.generateTokens(user)), user: this.buildUserData(user) };
   }
 
   async validatePassword(email: string, password: string) {
@@ -204,6 +241,24 @@ export class AuthService {
       success: true,
       message: 'Password set successfully',
     };
+  }
+
+  async forgotPassword(email: string) {
+    const isUser = await  this.userService.forgotPassword(email);
+    console.log('isUser===>', isUser);
+    if(isUser){
+      await this.otpService.sendEmailOtp(email);
+      return {
+        success: true,
+        message: 'OTP sent to email',
+      };
+    }else{
+      return {
+        success: false,
+        message: 'User not found',
+      };
+    }
+    
   }
 
 }

@@ -2,6 +2,10 @@ import { Injectable, OnModuleInit } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
 import { User, UserDocument } from './schemas/user.schema';
+import { SignupDto } from 'src/auth/dto/signup.dto';
+import * as bcrypt from 'bcrypt';
+
+const SALT_ROUNDS = 10;
 
 @Injectable()
 export class UserService implements OnModuleInit {
@@ -73,6 +77,54 @@ export class UserService implements OnModuleInit {
     }
 
     return user;
+  }
+
+  async findOrCreateByEmail(emall: string) {
+    let user = await this.userModel.findOne({ email: emall });
+
+    // if (!user) {
+    //   user = await this.userModel.create({
+    //     email: emall,
+    //     isVerified: true,
+    //   });
+    // }
+
+    return user;
+  }
+
+  async findOrCreateByEmailForSignup(signedUpUser: SignupDto) {
+    const email = signedUpUser.email.toLowerCase();
+
+    let user = await this.userModel.findOne({ email });
+
+    if (!user) {
+      const hashedPassword = await bcrypt.hash(signedUpUser?.password || '', SALT_ROUNDS);
+      user = await this.userModel.create({
+        email,
+        firstName: signedUpUser.firstName, // optional → schema default if undefined
+        lastName: signedUpUser.lastName,   // optional → schema default if undefined
+        password: hashedPassword,
+        authProvider: 'password',
+        isVerified: false, // OTP will verify it
+      });
+    }
+
+    return user;
+  }
+
+
+  async markAsVerified(userId: string) {
+    return this.userModel.updateOne(
+      { _id: userId },
+      { $set: { isVerified: true } },
+    );
+  }
+
+  async forgotPassword(email: string) {
+    return this.userModel.findOneAndUpdate(
+      { email: email.toLowerCase() },
+      { $set: { forgotPassword: true } },
+    );
   }
 
   async updatePassword(userId: string, hashedPassword: string) {

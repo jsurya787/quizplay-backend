@@ -5,20 +5,23 @@ export type OtpDocument = HydratedDocument<Otp>;
 
 @Schema({ timestamps: true })
 export class Otp {
-  @Prop({ required: true })
-  phone: string;
+  @Prop({ required: false, trim: true })
+  phone?: string;
+
+  @Prop({ required: false, trim: true, lowercase: true })
+  email?: string;
 
   @Prop({ required: true })
-  otp: string;
+  otp?: string;
 
   @Prop({ required: true })
-  expiresAt: Date;
+  expiresAt?: Date;
 
   @Prop({ default: false })
-  verified: boolean;
+  verified?: boolean;
 
   @Prop({ default: 0 })
-  attempts: number;
+  attempts?: number;
 }
 
 export const OtpSchema = SchemaFactory.createForClass(Otp);

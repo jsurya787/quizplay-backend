@@ -10,6 +10,20 @@ export enum UserRole {
 
 @Schema({ timestamps: true })
 export class User {
+  // ✅ New fields
+  @Prop({
+    trim: true,
+    default: 'Guest',
+  })
+  firstName?: string;
+
+  @Prop({
+    trim: true,
+    default: 'User',
+  })
+  lastName?: string;
+
+  // ⚠️ Optional legacy / display name
   @Prop({ trim: true })
   name?: string;
 
@@ -24,19 +38,27 @@ export class User {
   @Prop({
     unique: true,
     sparse: true,
+    lowercase: true,
+    trim: true,
+  })
+  authProvider?: string;
+
+  @Prop({
+    unique: true,
+    sparse: true,
     trim: true,
   })
   phone?: string;
 
-  // ✅ FIX IS HERE
+  // 🔐 Never returned by default
   @Prop({
     type: String,
     required: false,
-    select: false,   // 🔐 IMPORTANT: never return password by default
+    select: false,
   })
   password?: string;
 
-  // For Google authentication
+  // 🔑 Google Auth
   @Prop({
     unique: true,
     sparse: true,
@@ -47,11 +69,11 @@ export class User {
     enum: UserRole,
     default: UserRole.STUDENT,
   })
-  role: UserRole;
+  role?: UserRole;
 
-  // true after OTP or Google verification
+  // ✅ Verified via OTP or Google
   @Prop({ default: false })
-  isVerified: boolean;
+  isVerified?: boolean;
 }
 
 export const UserSchema = SchemaFactory.createForClass(User);

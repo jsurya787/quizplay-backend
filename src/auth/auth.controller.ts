@@ -11,6 +11,9 @@ import { AuthService } from './auth.service';
 import { OtpService } from './otp/otp/otp.service';
 import type { Request, Response } from 'express';
 import { JwtAuthGuard } from './jwt/jwt/jwt-auth.guard';
+import { SignupDto } from './dto/signup.dto';
+import { VerifyOtpDto } from './dto/verify-otp.dto';
+
 
 @Controller('auth')
 export class AuthController {
@@ -59,7 +62,16 @@ export class AuthController {
   }
 
   // ============================
-  // OTP SEND
+  // SIGNUP (Email OTP)
+  // ============================
+  @Post('signup')
+  async signup(@Body() dto: SignupDto) {
+    return this.authService.signup(dto);
+  }
+
+
+  // ============================
+  // OTP SEND (Phone)
   // ============================
   @Post('otp/send')
   async sendOtp(@Body('phone') phone: string) {
@@ -71,24 +83,30 @@ export class AuthController {
   // ============================
   @Post('otp/verify')
   async verifyOtpAndLogin(
-    @Body('phone') phone: string,
-    @Body('otp') otp: string,
+    @Body() dto: VerifyOtpDto,
     @Res({ passthrough: true }) res: Response,
   ) {
     const { accessToken, refreshToken, user } =
-      await this.authService.verifyOtpAndLogin(phone, otp);
+      await this.authService.verifyOtpAndLogin(dto.email, dto.otp, 'email');
 
-    // 🍪 SET REFRESH COOKIE FOR OTP LOGIN TOO
+    // 🍪 refresh token cookie
     res.cookie('refresh_token', refreshToken, {
       httpOnly: true,
-      secure: false,
+      secure: false, // true in prod HTTPS
       sameSite: 'lax',
       path: '/auth/refresh',
       maxAge: 7 * 24 * 60 * 60 * 1000,
     });
 
-    return { accessToken, user };
+    return { accessToken, user, success: true, message: 'OTP verified' };
   }
+
+  @Post('otp/resend')
+  async resendOtp(@Body('email') email: string) {
+    return this.otpService.sendEmailOtp(email);
+  }
+
+
 
   // ============================
   // LOGIN (OAuth Code)
@@ -119,6 +137,11 @@ export class AuthController {
   ) {
     const userId = req.user.sub; // from JWT
     return this.authService.setPassword(userId, password);
+  }
+
+  @Post('forgot-password')
+  async forgotPassword(@Body('email') email: string) {
+    return this.authService.forgotPassword(email);
   }
 
   @Post('logout')

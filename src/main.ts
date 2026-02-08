@@ -14,7 +14,8 @@ async function bootstrap() {
   app.enableCors({
     origin: (origin, callback) => {
       const allowedOrigins = [
-        'http://localhost:4200',
+        'http://localhost:8100',
+         'http://localhost:4200',
         'https://quizplay.co.in',
         'https://www.quizplay.co.in',
       ];
