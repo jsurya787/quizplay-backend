@@ -1,5 +1,6 @@
 // auth/roles.enum.ts
 export enum Role {
-  //USER = 'STUDENT',
+  STUDENT = 'STUDENT',
+  TEACHER = 'TEACHER',
   ADMIN = 'ADMIN',
 }

@@ -1,5 +1,6 @@
 import {
   BadRequestException,
+  ForbiddenException,
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
@@ -9,6 +10,8 @@ import { Quiz, QuizDocument } from './quiz.schema';
 import { CreateQuizDto } from './create-quiz.dto';
 import { AddQuestionDto } from './add-question.dto';
 import { UserService } from 'src/user/user.service';
+import { redis } from 'src/redis/redis.provider';
+import { Role } from 'src/auth/role/roles.enum';
 
 @Injectable()
 export class QuizService {
@@ -17,6 +20,7 @@ export class QuizService {
     @InjectModel(Quiz.name)
     private readonly quizModel: Model<QuizDocument>,
   ) {}
+
   // 📄 Get quizzes with limit (for quiz list page)
 async findAll(
   limit?: number,
@@ -25,12 +29,15 @@ async findAll(
   subjectId?: string,
   difficulty?: string,
   createdByMe?: string,
+  teacherQuizzesOnly?: boolean,
+  currentUserId?: string,
 ) {
   const safeLimit = limit && limit > 0 && limit <= 100 ? limit : 20;
   const safeSkip = skip && skip >= 0 ? skip : 0;
 
   const filter: any = {
     status: 'published',
+    visibility: 'PUBLIC',
   };
 
   // 🔍 SEARCH
@@ -48,20 +55,35 @@ async findAll(
     filter.difficulty = difficulty;
   }
 
-  // 👤 CREATED BY ME (overrides admin filter if present)
-  if (createdByMe) {
+  // 👤 TEACHER QUIZZES ONLY (For Students)
+  console.log("teacherQuizzesOnly-------->", teacherQuizzesOnly, currentUserId);
+  if (teacherQuizzesOnly && currentUserId) {
+    const user = await this.userService.findById(currentUserId);
+    console.log("teacherQuizzesOnly-------->", teacherQuizzesOnly, user?.teachers );
+    if (user && user.teachers && user.teachers.length > 0) {
+      filter.createdBy = { $in: user.teachers };
+      if (subjectId) {
+       filter.subjectId = subjectId;
+      }
+      if (difficulty) {
+        filter.difficulty = difficulty;
+      }
+       delete filter.visibility;
+    } else {
+      // If no teachers, return empty
+      return { total: 0, limit: safeLimit, skip: safeSkip, data: [] };
+    }
+  } else if (createdByMe) {
+    console.log("createdByMe-------->", createdByMe);
+    // 👤 CREATED BY ME (overrides admin filter if present)
     filter.createdBy = new Types.ObjectId(createdByMe);
+    delete filter.visibility;
   } else {
-    // 👑 ONLY ADMIN QUIZZES
+    // 👑 ONLY ADMIN QUIZZES (Default)
     const admins = await this.userService.getListOfAdmins();
 
     if (!admins.length) {
-      return {
-        total: 0,
-        limit: safeLimit,
-        skip: safeSkip,
-        data: [],
-      };
+      return { total: 0, limit: safeLimit, skip: safeSkip, data: [] };
     }
 
     filter.createdBy = {
@@ -93,9 +115,25 @@ async findAll(
   };
 }
 
+  async getQuizById(quizId: string) {
+    return this.quizModel.findById(quizId);
+  }
+
+
+
 
   // 🟡 Create Draft Quiz
-  async createDraft(dto: CreateQuizDto, userId:string) {
+  async createDraft(dto: CreateQuizDto, userId: string, role?: string) {
+    if (role === Role.STUDENT) {
+      const count = await this.quizModel.countDocuments({
+        createdBy: new Types.ObjectId(userId),
+      });
+
+      if (count >= 5) {
+        throw new BadRequestException('Students can only create up to 5 quizzes.');
+      }
+    }
+
     return await this.quizModel.create({
       title: dto.title,
       description: dto.description, // ✅ NEW
@@ -105,6 +143,7 @@ async findAll(
       status: 'draft',
       questions: [],
       totalMarks: 0,
+      visibility: role === Role.ADMIN ? 'PUBLIC' : 'RESTRICTED',
       createdBy: new Types.ObjectId(userId), // ✅ FIX
     });
   }
@@ -112,9 +151,8 @@ async findAll(
   // 🟡 Update Draft Quiz
   async updateDraft(quizId: string, dto: CreateQuizDto, userId: string) {
     const quiz = await this.quizModel.findOne({
-      _id: quizId,
-     // createdBy: new Types.ObjectId(userId),
-      status: 'draft',
+      _id:  new Types.ObjectId(quizId),
+      createdBy: new Types.ObjectId(userId),
     });
 
     if (!quiz) {
@@ -265,7 +303,10 @@ async findAll(
     quiz.status = 'published';
     await quiz.save();
 
-    return quiz;
+    // 🚀 Warm Redis Cache
+    await this.syncQuizCache(quizId);
+
+    return { success: true, message: 'Quiz published successfully' };
   }
 
   async getCreatedQuizzes(userId: string) {
@@ -277,5 +318,80 @@ async findAll(
       success: true,
       data: count,
     };
+  }
+
+  async assignBatches(
+    quizId: string,
+    batchIds: string[],
+    teacherId: string,
+  ) {
+    const quiz = await this.quizModel.findOne({
+      _id: quizId,
+      createdBy: teacherId,
+    });
+
+    if (!quiz) {
+      throw new ForbiddenException('Not your quiz');
+    }
+
+    quiz.allowedBatchIds = batchIds.map(id => new Types.ObjectId(id));
+    quiz.visibility = 'RESTRICTED';
+    await quiz.save();
+
+    // 🔥 Redis warm-up
+    await redis.del(`quiz:${quizId}:batches`);
+    await redis.sadd(`quiz:${quizId}:batches`, ...batchIds);
+    await redis.expire(`quiz:${quizId}:batches`, 3600);
+
+    // 🚀 Warm Redis Cache
+    await this.syncQuizCache(quizId);
+
+    return { success: true, message: 'Quiz published successfully' };
+  }
+
+  /**
+   * 🔄 Sync quiz metadata to Redis
+   */
+  async syncQuizCache(quizId: string) {
+    const quiz = await this.quizModel.findById(quizId).select('visibility createdBy allowedBatchIds').lean();
+    if (!quiz) return;
+
+    const pipeline = redis.pipeline();
+    const metaKey = `quiz:${quizId}:meta`;
+    const batchKey = `quiz:${quizId}:batches`;
+
+    // 1️⃣ Store Meta Hash
+    pipeline.hset(metaKey, {
+      visibility: quiz.visibility,
+      createdBy: quiz.createdBy.toString(),
+    });
+    pipeline.expire(metaKey, 3600); // 1h cache
+
+    // 2️⃣ Store Batches Set
+    pipeline.del(batchKey);
+    if (quiz.allowedBatchIds && quiz.allowedBatchIds.length > 0) {
+      pipeline.sadd(batchKey, ...quiz.allowedBatchIds.map(id => id.toString()));
+      pipeline.expire(batchKey, 3600);
+    }
+
+    // 3️⃣ Legacy flag (for backward compatibility or fast check)
+    if (quiz.visibility === 'PUBLIC') {
+      pipeline.set(`quiz:${quizId}:public`, '1', 'EX', 3600);
+    } else {
+      pipeline.del(`quiz:${quizId}:public`);
+    }
+
+    await pipeline.exec();
+  }
+
+  /**
+   * 🧹 Full Rebuild: Sync all quizzes to Redis
+   */
+  async syncAllQuizCache() {
+    const quizzes = await this.quizModel.find({ status: 'published' }).select('_id').lean();
+    for (const quiz of quizzes) {
+      await this.syncQuizCache(quiz._id.toString());
+    }
+    return { success: true, count: quizzes.length };
   }
 }

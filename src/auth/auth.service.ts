@@ -43,8 +43,6 @@ export class AuthService {
         redirectUri = 'https://quizplay.co.in/auth/google/callback';
       }
 
-      //console.log('redirectUri---->', redirectUri);
-
       const tokenResponse = await axios.post(
         'https://oauth2.googleapis.com/token',
         qs.stringify({
@@ -52,9 +50,6 @@ export class AuthService {
           client_id: process.env.GOOGLE_CLIENT_ID!,
           client_secret: process.env.GOOGLE_CLIENT_SECRET!,
           redirect_uri: redirectUri,
-           // process.env.GOOGLE_REDIRECT_URI ||
-           // 'https://quizplay.co.in/auth/google/callback',  
-            //'http://localhost:4200/auth/google/callback',
           grant_type: 'authorization_code',
         }),
         { headers: { 'Content-Type': 'application/x-www-form-urlencoded' } },
@@ -90,7 +85,7 @@ export class AuthService {
     const userId = user._id.toString();
 
     const accessToken = await this.jwtService.signAsync(
-      { sub: userId, role: user.role, email: user.email },
+      { sub: userId, role: user.role, email: user.email, batchIds: user.batchIds || [], teachers: user.teachers || [] },
       {
         secret: process.env.JWT_ACCESS_SECRET!,
         expiresIn: '24m',
@@ -127,6 +122,8 @@ export class AuthService {
           sub: user._id.toString(),
           role: user.role,       // ✅ RE-ADD
           email: user.email,     // ✅ RE-ADD
+          batchIds: user.batchIds || [],
+          teachers: user.teachers || [],
         },
         {
           secret: process.env.JWT_ACCESS_SECRET!,
@@ -152,14 +149,16 @@ export class AuthService {
     // picture: user.picture,
       role: user.role || 'user',
       firstName: user.firstName,
-      lastName: user.lastName
+      lastName: user.lastName,
+      //batchIds: user.batchIds || [],
+      teachers: user.teachers || []
     };
   }
 
   // ============================
   // OTP LOGIN / SIGNUP
   // ============================
-  async signup(sinedUpUser: SignupDto) {
+  async signup(sinedUpUser: SignupDto, ip?: string) {
     const { email } = sinedUpUser;
     const user = await this.userService.findOrCreateByEmailForSignup(sinedUpUser);
 
@@ -167,7 +166,7 @@ export class AuthService {
       throw new BadRequestException('Email already verified. Please login.');
     }
 
-    await this.otpService.sendEmailOtp(email);
+    await this.otpService.sendEmailOtp(email, ip);
 
     return {
       success: true,
@@ -243,11 +242,11 @@ export class AuthService {
     };
   }
 
-  async forgotPassword(email: string) {
+  async forgotPassword(email: string, ip?: string) {
     const isUser = await  this.userService.forgotPassword(email);
     console.log('isUser===>', isUser);
     if(isUser){
-      await this.otpService.sendEmailOtp(email);
+      await this.otpService.sendEmailOtp(email, ip);
       return {
         success: true,
         message: 'OTP sent to email',

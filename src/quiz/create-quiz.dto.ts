@@ -4,20 +4,20 @@ export class CreateQuizDto {
   @IsString()
   @IsNotEmpty()
   @MaxLength(100, { message: 'Title cannot exceed 100 characters' })
-  title: string;
+  title!: string;
 
   /* ✅ NEW */
   @IsString()
   @IsNotEmpty()
   @MaxLength(200, { message: 'Description cannot exceed 200 characters' })
-  description: string;
+  description!: string;
 
   @IsMongoId()
-  subjectId: string;
+  subjectId!: string;
 
   @IsEnum(['easy', 'medium', 'hard'])
-  difficulty: 'easy' | 'medium' | 'hard';
+  difficulty!: 'easy' | 'medium' | 'hard';
 
   @IsNumber()
-  timeLimit: number;
+  timeLimit!: number;
 }

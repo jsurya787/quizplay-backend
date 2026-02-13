@@ -1,5 +1,5 @@
 import { Module } from '@nestjs/common';
-import { ConfigModule } from '@nestjs/config';
+import { ConfigModule, ConfigService } from '@nestjs/config';
 import { MongooseModule } from '@nestjs/mongoose';
 
 import { AppController } from './app.controller';
@@ -11,6 +11,7 @@ import { SubjectsModule } from './subjects/subjects.module';
 import { QuizPlayerModule } from './quiz-player/quiz-player.module';
 import { SubjectInfoModule } from './subject-infos/subject-info.module';
 import { NotesModule } from './notes/notes.module';
+import { GuestSessionModule } from './guest-session/guest-session.module';
 
 @Module({
   imports: [
@@ -20,10 +21,11 @@ import { NotesModule } from './notes/notes.module';
       envFilePath: '.env',
     }),
 
-    // MongoDB (hardcoded for testing)
-    MongooseModule.forRoot(
-      'mongodb+srv://jaisuryakataria:KVYUD8HA2zQu9RF2@cluster0.592you1.mongodb.net/quizplay?retryWrites=true&w=majority',
-      {
+    // MongoDB (Environment Based)
+    MongooseModule.forRootAsync({
+      imports: [ConfigModule],
+      useFactory: async (configService: ConfigService) => ({
+        uri: configService.get<string>('MONGO_URI'),
         serverSelectionTimeoutMS: 30000,
         socketTimeoutMS: 45000,
         connectTimeoutMS: 30000,
@@ -31,8 +33,9 @@ import { NotesModule } from './notes/notes.module';
         minPoolSize: 1,
         retryWrites: true,
         retryReads: true,
-      },
-    ),
+      }),
+      inject: [ConfigService],
+    }),
 
     AuthModule,
     UserModule,
@@ -40,7 +43,8 @@ import { NotesModule } from './notes/notes.module';
     QuizPlayerModule,
     SubjectsModule,
     SubjectInfoModule,
-    NotesModule
+    NotesModule,
+    GuestSessionModule,
   ],
   controllers: [AppController],
   providers: [AppService],

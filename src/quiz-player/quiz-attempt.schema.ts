@@ -6,8 +6,14 @@ export class QuizAttempt {
   @Prop({ type: Types.ObjectId, ref: 'Quiz', required: true })
   quizId: Types.ObjectId;
 
-  @Prop({ type: Types.ObjectId, required: true })
-  userId: Types.ObjectId;
+  // 👤 User ID (optional for guest users)
+  @Prop({ type: Types.ObjectId, ref: 'User', required: false })
+  userId?: Types.ObjectId;
+
+  // 🎫 Guest Session ID (for non-authenticated users)
+  @Prop({ type: Types.ObjectId, ref: 'GuestSession', required: false, index: true })
+  guestSessionId?: Types.ObjectId;
+
 
   @Prop({
     type: [
@@ -42,25 +48,40 @@ export class QuizAttempt {
       questions: [
         {
           questionId: { type: Types.ObjectId },
+          question: String,
+          options: [
+            {
+              text: String,
+              isSelected: Boolean,
+            },
+          ],
           status: {
             type: String,
             enum: ['correct', 'wrong', 'skipped'],
           },
           marks: Number,
+          correctOptionIndex: Number,
         },
       ],
     },
     default: null,
   })
   result?: {
+    totalMarks?: number; // Added totalMarks to stored result
     correct: number;
     wrong: number;
     skipped: number;
     accuracy: number;
     questions: {
       questionId: Types.ObjectId;
+      question: string;
+      options: {
+        text: string;
+        isSelected: boolean;
+      }[];
       status: 'correct' | 'wrong' | 'skipped';
       marks: number;
+      correctOptionIndex: number;
     }[];
   };
 }

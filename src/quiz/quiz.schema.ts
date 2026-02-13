@@ -5,13 +5,12 @@ import { Document, Types } from 'mongoose';
    QUESTION SUB-SCHEMA
 ============================ */
 
-
 @Schema({ _id: true })
 export class Question {
-  _id: Types.ObjectId; // ✅ ADD THIS
+  _id!: Types.ObjectId;
 
   @Prop({ required: true, trim: true })
-  questionText: string;
+  questionText!: string;
 
   @Prop({
     type: [
@@ -22,17 +21,14 @@ export class Question {
     ],
     required: true,
     validate: {
-      validator: (v: any[]) => v.length === 4,
+      validator: (v: any[]) => Array.isArray(v) && v.length === 4,
       message: 'Exactly 4 options are required',
     },
   })
-  options: {
-    text: string;
-    isCorrect: boolean;
-  }[];
+  options!: { text: string; isCorrect: boolean }[];
 
   @Prop({ default: 4, min: 1 })
-  marks: number;
+  marks!: number;
 }
 
 export const QuestionSchema = SchemaFactory.createForClass(Question);
@@ -41,63 +37,60 @@ export const QuestionSchema = SchemaFactory.createForClass(Question);
    QUIZ SCHEMA
 ============================ */
 
-@Schema({
-  timestamps: true,
-  toJSON: { virtuals: true },
-  toObject: { virtuals: true },
-})
+@Schema({ timestamps: true })
 export class Quiz {
   @Prop({ required: true, trim: true })
-  title: string;
+  title!: string;
 
-  /* ✅ NEW: Description */
-  @Prop({
-    required: true,
-    trim: true,
-    maxlength: 300,
-  })
-  description: string;
+  @Prop({ required: true, trim: true, maxlength: 300 })
+  description!: string;
 
-  @Prop({
-    type: Types.ObjectId,
-    ref: 'Subject',
-    required: true,
-  })
-  subjectId: Types.ObjectId;
+  @Prop({ type: Types.ObjectId, ref: 'Subject', required: true })
+  subjectId!: Types.ObjectId;
 
-  @Prop({
-    type: String,
-    enum: ['easy', 'medium', 'hard'],
-    required: true,
-  })
-  difficulty: 'easy' | 'medium' | 'hard';
+  @Prop({ enum: ['easy', 'medium', 'hard'], required: true })
+  difficulty!: 'easy' | 'medium' | 'hard';
 
   @Prop({ required: true, min: 1 })
-  timeLimit: number; // minutes
+  timeLimit!: number;
 
-  @Prop({
-    type: String,
-    enum: ['draft', 'published'],
-    default: 'draft',
-  })
-  status: 'draft' | 'published';
+  @Prop({ enum: ['draft', 'published'], default: 'draft' })
+  status!: 'draft' | 'published';
 
   @Prop({ type: [QuestionSchema], default: [] })
-  questions: Question[];
+  questions!: Question[];
 
-  @Prop({ default: 0, min: 0 })
-  totalMarks: number;
+  @Prop({ default: 0 })
+  totalMarks!: number;
 
   @Prop({ default: true })
-  isActive: boolean;
+  isActive!: boolean;
 
   @Prop({
     type: Types.ObjectId,
     ref: 'User',
     required: true,
+    index: true,
   })
-  createdBy: Types.ObjectId;
+  createdBy!: Types.ObjectId;
 
+  /* ============================
+     ACCESS CONTROL (FINAL)
+  ============================ */
+
+  @Prop({
+    type: [Types.ObjectId],
+    ref: 'Batch',
+    default: [],
+  })
+  allowedBatchIds!: Types.ObjectId[];
+
+  @Prop({
+    enum: ['PUBLIC', 'RESTRICTED'],
+    default: 'PUBLIC',
+    index: true,
+  })
+  visibility!: 'PUBLIC' | 'RESTRICTED';
 }
 
 export type QuizDocument = Quiz & Document;

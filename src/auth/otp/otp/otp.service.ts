@@ -6,6 +6,7 @@ import axios from 'axios';
 import dayjs from 'dayjs';
 import * as nodemailer from 'nodemailer';
 import { Otp, OtpDocument } from './otp.schema';
+import { redis } from 'src/redis/redis.provider';
 
 @Injectable()
 export class OtpService {
@@ -30,7 +31,24 @@ export class OtpService {
     return Math.floor(100000 + Math.random() * 900000).toString();
   }
 
-  async sendOtp(phone: string) {
+  private async checkRateLimit(ip: string): Promise<void> {
+    if (!ip) return; // skip if no ip
+
+    const key = `otp:limit:${ip}`;
+    const count = await redis.incr(key);
+
+    if (count === 1) {
+      await redis.expire(key, 86400); // 24 hours
+    }
+
+    if (count > 10) {
+      this.logger.warn(`OTP rate limit exceeded for IP: ${ip}`);
+      throw new BadRequestException('Too many OTP requests from this IP. Please try again after 24 hours.');
+    }
+  }
+
+  async sendOtp(phone: string, ip?: string) {
+    if (ip) await this.checkRateLimit(ip);
     const otp = this.generateOtp();
     const expiresAt = dayjs().add(5, 'minute').toDate();
 
@@ -57,7 +75,8 @@ export class OtpService {
     return { message: 'OTP sent successfully' };
   }
 
-  async sendEmailOtp(email: string) {
+  async sendEmailOtp(email: string, ip?: string) {
+    if (ip) await this.checkRateLimit(ip);
     const otp = this.generateOtp();
     const expiresAt = dayjs().add(5, 'minute').toDate();
 

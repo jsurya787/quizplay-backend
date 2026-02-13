@@ -1,10 +1,11 @@
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
-import { HydratedDocument } from 'mongoose';
+import { HydratedDocument, Types } from 'mongoose';
 
 export type UserDocument = HydratedDocument<User>;
 
 export enum UserRole {
   STUDENT = 'STUDENT',
+  TEACHER = 'TEACHER',
   ADMIN = 'ADMIN',
 }
 
@@ -74,6 +75,16 @@ export class User {
   // ✅ Verified via OTP or Google
   @Prop({ default: false })
   isVerified?: boolean;
+
+  @Prop({ type: [Types.ObjectId], ref: 'Batch', default: [] })
+  batchIds?: Types.ObjectId[];
+
+  // 🤝 Teacher-Student Relationships
+  @Prop({ type: [Types.ObjectId], ref: 'User', default: [] })
+  students?: Types.ObjectId[];
+
+  @Prop({ type: [Types.ObjectId], ref: 'User', default: [] })
+  teachers?: Types.ObjectId[];
 }
 
 export const UserSchema = SchemaFactory.createForClass(User);

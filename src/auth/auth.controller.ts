@@ -65,8 +65,8 @@ export class AuthController {
   // SIGNUP (Email OTP)
   // ============================
   @Post('signup')
-  async signup(@Body() dto: SignupDto) {
-    return this.authService.signup(dto);
+  async signup(@Body() dto: SignupDto, @Req() req: Request) {
+    return this.authService.signup(dto, req.ip);
   }
 
 
@@ -74,8 +74,8 @@ export class AuthController {
   // OTP SEND (Phone)
   // ============================
   @Post('otp/send')
-  async sendOtp(@Body('phone') phone: string) {
-    return this.otpService.sendOtp(phone);
+  async sendOtp(@Body('phone') phone: string, @Req() req: Request) {
+    return this.otpService.sendOtp(phone, req.ip);
   }
 
   // ============================
@@ -102,8 +102,8 @@ export class AuthController {
   }
 
   @Post('otp/resend')
-  async resendOtp(@Body('email') email: string) {
-    return this.otpService.sendEmailOtp(email);
+  async resendOtp(@Body('email') email: string, @Req() req: Request) {
+    return this.otpService.sendEmailOtp(email, req.ip);
   }
 
 
@@ -140,8 +140,8 @@ export class AuthController {
   }
 
   @Post('forgot-password')
-  async forgotPassword(@Body('email') email: string) {
-    return this.authService.forgotPassword(email);
+  async forgotPassword(@Body('email') email: string, @Req() req: Request) {
+    return this.authService.forgotPassword(email, req.ip);
   }
 
   @Post('logout')

@@ -14,13 +14,19 @@ import { QuizService } from './quiz.service';
 import { CreateQuizDto } from './create-quiz.dto';
 import { AddQuestionDto } from './add-question.dto';
 import { JwtAuthGuard } from 'src/auth/jwt/jwt/jwt-auth.guard';
+import { QuizAccessGuard } from 'src/auth/jwt/jwt/quiz-access.guard';
+import { RolesGuard } from 'src/auth/jwt/jwt/roles.guard';
+import { Roles } from 'src/auth/role/roles.decorator';
+import { Role } from 'src/auth/role/roles.enum';
+import { OptionalJwtAuthGuard } from 'src/auth/jwt/jwt/optional-jwt-auth.guard';
 
+//@UseGuards(JwtAuthGuard, RolesGuard)
 @Controller('quizzes')
 export class QuizController {
   constructor(private readonly quizService: QuizService) {}
 
-
-  // 📄 GET /quizzes?limit=10&skip=0
+  // 📄 GET /quizzes?limit=10&skip=0 
+  @UseGuards(OptionalJwtAuthGuard)
   @Get()
   async findAll(
     @Query('limit') limit?: string,
@@ -29,6 +35,8 @@ export class QuizController {
     @Query('subjectId') subjectId?: string,
     @Query('difficulty') difficulty?: string,
     @Query('createdByMe') createdByMe?: string,
+    @Query('teacherQuizzesOnly') teacherQuizzesOnly?: string,
+    @Req() req?: any,
   ) {
     return {
       success: true,
@@ -38,17 +46,34 @@ export class QuizController {
         search,
         subjectId,
         difficulty,
-        createdByMe 
+        createdByMe,
+        teacherQuizzesOnly === 'true',
+        req?.user?.sub,
       )),
     };
   }
 
-  // 🟡 Create Draft Quiz
   @UseGuards(JwtAuthGuard)
+  @Get('createdByUser')
+  async getCreatedQuizzes(@Req() req: any) {
+    const userId = req.user.sub;
+    return this.quizService.getCreatedQuizzes(userId);
+  }
+
+  // restricted access only by specfic user
+  @UseGuards(JwtAuthGuard, QuizAccessGuard)
+  @Get(':quizId') 
+  getQuiz(@Param('quizId') quizId: string) {
+    return this.quizService.getQuizById(quizId);
+  }
+
+  // 🟡 Create Draft Quiz
+  @Roles(Role.ADMIN, Role.TEACHER, Role.STUDENT)
+  @UseGuards(JwtAuthGuard, RolesGuard)
   @Post()
   async create(@Body() dto: CreateQuizDto, @Req() req: any) {
-    const userId = req.user.sub || '695f7eceebf73de912504bc3';
-    const quiz = await this.quizService.createDraft(dto, userId);
+    const userId = req.user.sub;
+    const quiz = await this.quizService.createDraft(dto, userId, req.user.role);
     return {
       success: true,
       message: 'Quiz draft created',
@@ -56,10 +81,13 @@ export class QuizController {
     };
   }
 
+  //@Roles(Role.ADMIN, Role.TEACHER)
+  //@UseGuards(JwtAuthGuard)
   @Post('/public')
   async createPublic(@Body() dto: CreateQuizDto, @Req() req: any) {
-    const userId = '695f7eceebf73de912504bc3';
-    const quiz = await this.quizService.createDraft(dto, userId);
+    const userId = req.user?.sub;
+    const userRole = req.user?.role;
+    const quiz = await this.quizService.createDraft(dto, userId, userRole);
     return {
       success: true,
       message: 'Quiz draft created',
@@ -67,9 +95,15 @@ export class QuizController {
     };
   }
 
- @Patch(':quizId/public')
-  async updatePublic(@Param('quizId') quizId: string, @Body() dto: CreateQuizDto, @Req() req: any) {
-    const userId = '695f7eceebf73de912504bc3';
+  @Roles(Role.ADMIN, Role.TEACHER)
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Patch(':quizId/public')
+  async updatePublic(
+    @Param('quizId') quizId: string,
+    @Body() dto: CreateQuizDto,
+    @Req() req: any,
+  ) {
+    const userId = req.user.sub || '695f7eceebf73de912504bc3';
     const quiz = await this.quizService.updateDraft(quizId, dto, userId);
     return {
       success: true,
@@ -78,12 +112,11 @@ export class QuizController {
     };
   }
 
-    // 🗑️ Delete Quiz
+  // 🗑️ Delete Quiz
+  @Roles(Role.ADMIN, Role.TEACHER)
   @Delete(':quizId')
-  async deleteQuiz(
-    @Param('quizId') quizId: string,
-  ) {
-     await this.quizService.deleteQuiz(quizId);
+  async deleteQuiz(@Param('quizId') quizId: string) {
+    await this.quizService.deleteQuiz(quizId);
     return {
       success: true,
       message: 'Quiz removed successfully',
@@ -91,6 +124,7 @@ export class QuizController {
   }
 
   // 🟡 Add / Save Question
+  @Roles(Role.ADMIN, Role.TEACHER)
   @Post(':quizId/questions')
   async addQuestion(
     @Param('quizId') quizId: string,
@@ -105,10 +139,11 @@ export class QuizController {
   }
 
   // 🟡 Add Multiple questions  / Save Question
+  @Roles(Role.ADMIN, Role.TEACHER)
   @Post(':quizId/questions/bulk')
   async addBulkQuestions(
     @Param('quizId') quizId: string,
-    @Body() dto: AddQuestionDto [],
+    @Body() dto: AddQuestionDto[],
   ) {
     const quiz = await this.quizService.addBulkQuestions(quizId, dto);
     return {
@@ -118,18 +153,15 @@ export class QuizController {
     };
   }
 
-  // Update Question 
+  // Update Question
+  @Roles(Role.ADMIN, Role.TEACHER)
   @Patch(':quizId/questions/:questionId')
   async updateQuestion(
     @Param('quizId') quizId: string,
     @Param('questionId') questionId: string,
     @Body() dto: AddQuestionDto,
   ) {
-    const quiz = await this.quizService.updateQuestion(
-      quizId,
-      questionId,
-      dto,
-    );
+    const quiz = await this.quizService.updateQuestion(quizId, questionId, dto);
 
     return {
       success: true,
@@ -138,8 +170,8 @@ export class QuizController {
     };
   }
 
-
   // 🗑️ Delete Question
+  @Roles(Role.ADMIN, Role.TEACHER)
   @Delete(':quizId/questions/:questionId')
   async removeQuestion(
     @Param('quizId') quizId: string,
@@ -154,6 +186,7 @@ export class QuizController {
   }
 
   // 🚀 Publish Quiz
+  @Roles(Role.ADMIN, Role.TEACHER)
   @Post(':quizId/publish')
   async publish(@Param('quizId') quizId: string) {
     const quiz = await this.quizService.publishQuiz(quizId);
@@ -164,11 +197,15 @@ export class QuizController {
     };
   }
 
-  @UseGuards(JwtAuthGuard)
-  @Get('createdByUser')
-  async getCreatedQuizzes(@Req() req: any) {
-    const userId = req.user.sub;
-    return this.quizService.getCreatedQuizzes(userId);
-  }
 
+
+  @Roles(Role.ADMIN, Role.TEACHER)
+  @Post(':quizId/assign-batches')
+  assignBatches(
+    @Param('quizId') quizId: string,
+    @Body() body: { batchIds: string[] },
+    @Req() req: any,
+  ) {
+    return this.quizService.assignBatches(quizId, body.batchIds, req.user.sub);
+  }
 }
