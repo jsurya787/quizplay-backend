@@ -26,18 +26,15 @@ async function bootstrap() {
   app.enableCors({
     origin: (origin, callback) => {
       const allowedOrigins = [
+        'http://localhost',
+        'https://localhost',       // 👈 ADDED (Android Capacitor default)
+        'capacitor://localhost',
         'http://localhost:8100',
-         'http://localhost:4200',
+        'http://192.168.31.179:3000',
         'https://quizplay.co.in',
-        'https://www.quizplay.co.in',
       ];
 
-      // allow SSR / server-to-server / Postman
-      if (!origin) {
-        return callback(null, true);
-      }
-
-      if (allowedOrigins.includes(origin)) {
+      if (!origin || allowedOrigins.includes(origin)) {
         return callback(null, true);
       }
 
