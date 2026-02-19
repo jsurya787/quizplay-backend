@@ -3,12 +3,30 @@ import {
   IsOptional,
   IsBoolean,
   IsArray,
+  IsEnum,
+  IsInt,
+  Min,
 } from 'class-validator';
 import { Transform } from 'class-transformer';
+
+export enum SubjectType {
+  ENTRANCE = 'entrance',
+  GOVERNMENT = 'government',
+  STATE = 'state',
+  BORDS = 'bords',
+}
 
 export class CreateSubjectDto {
   @IsString()
   name: string;
+
+  @IsEnum(SubjectType)
+  type: SubjectType;
+
+  @Transform(({ value }) => Number(value))
+  @IsInt()
+  @Min(0)
+  priority: number;
 
   @IsString()
   subjectClass: string;

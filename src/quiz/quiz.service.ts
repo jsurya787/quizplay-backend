@@ -56,10 +56,8 @@ async findAll(
   }
 
   // 👤 TEACHER QUIZZES ONLY (For Students)
-  console.log("teacherQuizzesOnly-------->", teacherQuizzesOnly, currentUserId);
   if (teacherQuizzesOnly && currentUserId) {
     const user = await this.userService.findById(currentUserId);
-    console.log("teacherQuizzesOnly-------->", teacherQuizzesOnly, user?.teachers );
     if (user && user.teachers && user.teachers.length > 0) {
       filter.createdBy = { $in: user.teachers };
       if (subjectId) {
@@ -74,7 +72,9 @@ async findAll(
       return { total: 0, limit: safeLimit, skip: safeSkip, data: [] };
     }
   } else if (createdByMe) {
-    console.log("createdByMe-------->", createdByMe);
+    if (!Types.ObjectId.isValid(createdByMe)) {
+      throw new BadRequestException('Invalid createdByMe user id');
+    }
     // 👤 CREATED BY ME (overrides admin filter if present)
     filter.createdBy = new Types.ObjectId(createdByMe);
     delete filter.visibility;
@@ -303,10 +303,54 @@ async findAll(
     quiz.status = 'published';
     await quiz.save();
 
+    // TODO: When enabling "email all associated students on publish",
+    // avoid sending emails inline in this request.
+    // If publish becomes slow or blocks Nest event loop, move notification work
+    // to a background queue (RabbitMQ/Bull) and process asynchronously.
+
     // 🚀 Warm Redis Cache
     await this.syncQuizCache(quizId);
 
     return { success: true, message: 'Quiz published successfully' };
+  }
+
+  async notifyStudentsForPublishedQuiz(
+    quizId: string,
+    actorUserId: string,
+    actorRole: string,
+  ) {
+    const quiz = await this.quizModel.findById(quizId).select('title difficulty status createdBy').lean();
+    if (!quiz) {
+      throw new NotFoundException('Quiz not found');
+    }
+
+    if (quiz.status !== 'published') {
+      throw new BadRequestException('Quiz must be published before sending notifications');
+    }
+
+    const isAdmin = actorRole === Role.ADMIN;
+    const isTeacher = actorRole === Role.TEACHER;
+    if (!isAdmin && !isTeacher) {
+      throw new ForbiddenException('Only teachers or admins can send quiz notifications');
+    }
+
+    if (isTeacher && quiz.createdBy.toString() !== actorUserId) {
+      throw new ForbiddenException('You can notify students only for your own quizzes');
+    }
+
+    // NOTE: This is currently synchronous. If this endpoint becomes slow under higher volume,
+    // move notification sending to RabbitMQ/Bull worker queue.
+    const notification = await this.userService.notifyAssociatedStudentsAboutPublishedQuiz({
+      teacherId: quiz.createdBy.toString(),
+      quizTitle: quiz.title,
+      difficulty: quiz.difficulty,
+    });
+
+    return {
+      success: true,
+      message: 'Student notifications processed',
+      notification,
+    };
   }
 
   async getCreatedQuizzes(userId: string) {
@@ -317,6 +361,21 @@ async findAll(
     return {
       success: true,
       data: count,
+    };
+  }
+
+  async getCreatedQuizzesList(userId: string) {
+    const createdBy = new Types.ObjectId(userId);
+
+    const quizzes = await this.quizModel
+      .find({ createdBy })
+      .sort({ createdAt: -1 })
+      .select('title difficulty status createdAt totalMarks')
+      .lean();
+
+    return {
+      success: true,
+      data: quizzes,
     };
   }
 
@@ -353,6 +412,8 @@ async findAll(
    * 🔄 Sync quiz metadata to Redis
    */
   async syncQuizCache(quizId: string) {
+    if (!Types.ObjectId.isValid(quizId)) return;
+
     const quiz = await this.quizModel.findById(quizId).select('visibility createdBy allowedBatchIds').lean();
     if (!quiz) return;
 

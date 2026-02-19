@@ -14,8 +14,8 @@ export class GuestSessionService {
   // 🎯 Rate limit: 5 attempts per hour
   private readonly MAX_ATTEMPTS_PER_HOUR = 5;
 
-  // 📈 Global limit: 10 total quizzes per guest
-  private readonly MAX_GLOBAL_ATTEMPTS = 2;
+  // 📈 Global limit: 5 total quizzes per guest
+  private readonly MAX_GLOBAL_ATTEMPTS = 5;
 
   constructor(
     @InjectModel(GuestSession.name)

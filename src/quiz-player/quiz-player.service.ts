@@ -68,6 +68,10 @@ export class QuizPlayerService {
 
   // 🎯 Get quiz WITHOUT correct answers
   async getPlayableQuiz(quizId: string) {
+    if (!Types.ObjectId.isValid(quizId)) {
+      throw new BadRequestException('Invalid quiz id');
+    }
+
     const quiz = await this.quizModel
       .findOne({ _id: quizId, status: 'published' })
       .lean();
@@ -293,6 +297,10 @@ export class QuizPlayerService {
   }
 
   async getAttemptedQuizzesCount(userId: string) {
+    if (!Types.ObjectId.isValid(userId)) {
+      throw new BadRequestException('Invalid user id');
+    }
+
     const userObjectId = new Types.ObjectId(userId);
 
     const count = await this.attemptModel.countDocuments({
@@ -302,6 +310,34 @@ export class QuizPlayerService {
     return {
       success: true,
       count: count,
+    };
+  }
+
+  async getAttemptedQuizzes(userId: string) {
+    if (!Types.ObjectId.isValid(userId)) {
+      throw new BadRequestException('Invalid user id');
+    }
+
+    const userObjectId = new Types.ObjectId(userId);
+
+    const attempts = await this.attemptModel
+      .find({ userId: userObjectId, isSubmitted: true })
+      .populate('quizId', 'title difficulty')
+      .sort({ submittedAt: -1 })
+      .lean();
+
+    return {
+      success: true,
+      data: attempts.map((attempt: any) => ({
+        _id: attempt._id,
+        attemptId: attempt._id,
+        quizId: attempt.quizId?._id,
+        quizTitle: attempt.quizId?.title || 'Unknown Quiz',
+        difficulty: attempt.quizId?.difficulty || 'N/A',
+        score: attempt.score ?? 0,
+        accuracy: attempt.result?.accuracy ?? 0,
+        submittedAt: attempt.submittedAt,
+      })),
     };
   }
 

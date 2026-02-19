@@ -12,6 +12,7 @@ import { MongooseModule } from '@nestjs/mongoose';
 import { Otp, OtpSchema } from './otp/otp/otp.schema';
 import { JwtStrategy } from './jwt/jwt/jwt.strategy';
 import { JwtAuthGuard } from './jwt/jwt/jwt-auth.guard';
+import { MailModule } from 'src/mail/mail.module';
 
 @Module({
   imports: [
@@ -33,6 +34,7 @@ import { JwtAuthGuard } from './jwt/jwt/jwt-auth.guard';
     MongooseModule.forFeature([
       { name: Otp.name, schema: OtpSchema },
     ]),
+    MailModule,
   ],
   controllers: [AuthController],
   providers: [

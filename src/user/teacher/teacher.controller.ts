@@ -2,7 +2,11 @@ import {
   Controller,
   Post,
   Get,
+  Patch,
+  Delete,
   Body,
+  Param,
+  Query,
   UseGuards,
   Request,
   BadRequestException,
@@ -13,6 +17,7 @@ import { JwtAuthGuard } from 'src/auth/jwt/jwt/jwt-auth.guard';
 import { RolesGuard } from 'src/auth/jwt/jwt/roles.guard';
 import { Roles } from 'src/auth/role/roles.decorator';
 import { Role } from 'src/auth/role/roles.enum';
+import { UpdateTeacherInstituteDto } from './dto/update-teacher-institute.dto';
 
 @Controller('teacher')
 @UseGuards(JwtAuthGuard, RolesGuard)
@@ -41,7 +46,33 @@ export class TeacherController {
    */
   @Get('students')
   @Roles(Role.TEACHER)
-  async getStudents(@Request() req) {
-    return await this.userService.getTeacherStudents(req.user.sub);
+  async getStudents(@Request() req, @Query('search') search?: string) {
+    return await this.userService.getTeacherStudents(req.user.sub, search);
+  }
+
+  @Delete('students/:studentId')
+  @Roles(Role.TEACHER)
+  async removeStudent(@Request() req, @Param('studentId') studentId: string) {
+    if (!studentId) {
+      throw new BadRequestException('Student id is required');
+    }
+
+    try {
+      return await this.userService.unlinkStudent(req.user.sub, studentId);
+    } catch (error) {
+      throw new NotFoundException(error.message);
+    }
+  }
+
+  @Get('institute')
+  @Roles(Role.TEACHER)
+  async getInstitute(@Request() req) {
+    return await this.userService.getTeacherInstitute(req.user.sub);
+  }
+
+  @Patch('institute')
+  @Roles(Role.TEACHER)
+  async updateInstitute(@Request() req, @Body() dto: UpdateTeacherInstituteDto) {
+    return await this.userService.updateTeacherInstitute(req.user.sub, dto);
   }
 }

@@ -26,6 +26,7 @@ async function bootstrap() {
   app.enableCors({
     origin: (origin, callback) => {
       const allowedOrigins = [
+        'http://localhost:4200',
         'http://localhost',
         'https://localhost',       // 👈 ADDED (Android Capacitor default)
         'capacitor://localhost',

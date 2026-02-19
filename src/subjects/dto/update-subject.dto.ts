@@ -3,13 +3,27 @@ import {
   IsOptional,
   IsBoolean,
   IsArray,
+  IsEnum,
+  IsInt,
+  Min,
 } from 'class-validator';
 import { Transform } from 'class-transformer';
+import { SubjectType } from './create-subject.dto';
 
 export class UpdateSubjectDto {
   @IsOptional()
   @IsString()
   name?: string;
+
+  @IsOptional()
+  @IsEnum(SubjectType)
+  type?: SubjectType;
+
+  @IsOptional()
+  @Transform(({ value }) => (value === undefined ? undefined : Number(value)))
+  @IsInt()
+  @Min(0)
+  priority?: number;
 
   @IsOptional()
   @IsString()

@@ -60,6 +60,13 @@ export class QuizController {
     return this.quizService.getCreatedQuizzes(userId);
   }
 
+  @UseGuards(JwtAuthGuard)
+  @Get('createdByUser/list')
+  async getCreatedQuizzesList(@Req() req: any) {
+    const userId = req.user.sub;
+    return this.quizService.getCreatedQuizzesList(userId);
+  }
+
   // restricted access only by specfic user
   @UseGuards(JwtAuthGuard, QuizAccessGuard)
   @Get(':quizId') 
@@ -194,6 +201,22 @@ export class QuizController {
       success: true,
       message: 'Quiz published successfully',
       data: quiz,
+    };
+  }
+
+  @Roles(Role.ADMIN, Role.TEACHER)
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Post(':quizId/notify-students')
+  async notifyStudents(@Param('quizId') quizId: string, @Req() req: any) {
+    const result = await this.quizService.notifyStudentsForPublishedQuiz(
+      quizId,
+      req.user.sub,
+      req.user.role,
+    );
+    return {
+      success: true,
+      message: result.message,
+      data: result.notification,
     };
   }
 

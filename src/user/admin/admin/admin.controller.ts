@@ -1,4 +1,16 @@
-import { Controller, Post, UseGuards, Inject, forwardRef, Body } from '@nestjs/common';
+import {
+  Controller,
+  Post,
+  UseGuards,
+  Inject,
+  forwardRef,
+  Body,
+  Get,
+  Request,
+  Query,
+  Patch,
+  Param,
+} from '@nestjs/common';
 import { UserService } from 'src/user/user.service';
 import { QuizService } from 'src/quiz/quiz.service';
 import { RolesGuard } from 'src/auth/jwt/jwt/roles.guard';
@@ -6,7 +18,6 @@ import { Roles } from 'src/auth/role/roles.decorator';
 import { Role } from 'src/auth/role/roles.enum';
 import { JwtAuthGuard } from 'src/auth/jwt/jwt/jwt-auth.guard';
 import { redis } from 'src/redis/redis.provider';
-import { Get } from '@nestjs/common';
 
 @Controller('admin')
 @UseGuards(JwtAuthGuard, RolesGuard)
@@ -45,6 +56,16 @@ export class AdminController {
     return this.userService.getStudentsList();
   }
 
+  @Get('users/search')
+  async searchUsers(@Query('search') search?: string) {
+    return this.userService.searchUsers(search);
+  }
+
+  @Get('users/inactive')
+  async getInactiveUsers(@Query('search') search?: string) {
+    return this.userService.getInactiveUsers(search);
+  }
+
   @Post('clear-cache')
   async clearCache() {
     await redis.flushall();
@@ -52,7 +73,22 @@ export class AdminController {
   }
 
   @Post('assign-role')
-  async assignRole(@Body() body: { userId: string, role: string }) {
-    return this.userService.updateUserRole(body.userId, body.role);
+  async assignRole(@Request() req, @Body() body: { userId: string, role: string }) {
+    return this.userService.updateUserRole(
+      body.userId,
+      body.role,
+      req.user?.sub,
+      req.user?.email,
+    );
+  }
+
+  @Patch('users/:userId/deactivate')
+  async deactivateUser(@Param('userId') userId: string, @Request() req) {
+    return this.userService.setUserActiveState(userId, false, req.user?.sub);
+  }
+
+  @Patch('users/:userId/activate')
+  async activateUser(@Param('userId') userId: string, @Request() req) {
+    return this.userService.setUserActiveState(userId, true, req.user?.sub);
   }
 }

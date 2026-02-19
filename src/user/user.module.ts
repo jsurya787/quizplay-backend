@@ -6,6 +6,8 @@ import { User, UserSchema } from './schemas/user.schema';
 import { UserService } from './user.service';
 import { TeacherController } from './teacher/teacher.controller';
 import { QuizModule } from 'src/quiz/quiz.module';
+import { Institute, InstituteSchema } from './schemas/institute.schema';
+import { MailModule } from 'src/mail/mail.module';
 
 
 
@@ -13,7 +15,9 @@ import { QuizModule } from 'src/quiz/quiz.module';
   imports: [
     MongooseModule.forFeature([
       { name: User.name, schema: UserSchema },
+      { name: Institute.name, schema: InstituteSchema },
     ]),
+    MailModule,
     forwardRef(() => QuizModule),
   ],
    controllers: [StudentController, AdminController, TeacherController],

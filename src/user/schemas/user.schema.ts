@@ -9,6 +9,12 @@ export enum UserRole {
   ADMIN = 'ADMIN',
 }
 
+export enum UserSex {
+  MALE = 'male',
+  FEMALE = 'female',
+  OTHER = 'other',
+}
+
 @Schema({ timestamps: true })
 export class User {
   // ✅ New fields
@@ -85,6 +91,19 @@ export class User {
 
   @Prop({ type: [Types.ObjectId], ref: 'User', default: [] })
   teachers?: Types.ObjectId[];
+
+  @Prop({ enum: UserSex, required: false })
+  sex?: UserSex;
+
+  // 👤 Common profile field (all roles)
+  @Prop({ trim: true, default: '' })
+  about?: string;
+
+  @Prop({ default: true, index: true })
+  isActive?: boolean;
+
+  @Prop({ required: false })
+  deactivatedAt?: Date;
 }
 
 export const UserSchema = SchemaFactory.createForClass(User);

@@ -6,6 +6,7 @@ import {
   Delete,
   Body,
   Param,
+  Query,
   UseGuards,
   UsePipes,
   ValidationPipe,
@@ -22,6 +23,7 @@ import { Role } from 'src/auth/role/roles.enum';
 import { Roles } from 'src/auth/role/roles.decorator';
 import { CreateSubjectDto } from './dto/create-subject.dto';
 import { UpdateSubjectDto } from './dto/update-subject.dto';
+import { ListSubjectsDto } from './dto/list-subjects.dto';
 
 @Controller('subjects')
 @UsePipes(
@@ -75,8 +77,8 @@ export class SubjectsController {
 
   // 📄 Get All Subjects
   @Get()
-  findAll() {
-    return this.subjectsService.findAll();
+  findAll(@Query() query: ListSubjectsDto) {
+    return this.subjectsService.findAll(query);
   }
 
   // 📄 Get Primary Subjects

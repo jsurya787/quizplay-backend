@@ -1,6 +1,7 @@
 import {
   Controller,
   Post,
+  Patch,
   Body,
   Req,
   Res,
@@ -13,6 +14,7 @@ import type { Request, Response } from 'express';
 import { JwtAuthGuard } from './jwt/jwt/jwt-auth.guard';
 import { SignupDto } from './dto/signup.dto';
 import { VerifyOtpDto } from './dto/verify-otp.dto';
+import { UpdateProfileDto } from './dto/update-profile.dto';
 
 
 @Controller('auth')
@@ -137,6 +139,15 @@ export class AuthController {
   ) {
     const userId = req.user.sub; // from JWT
     return this.authService.setPassword(userId, password);
+  }
+
+  @Patch('profile')
+  @UseGuards(JwtAuthGuard)
+  async updateProfile(
+    @Req() req: any,
+    @Body() dto: UpdateProfileDto,
+  ) {
+    return this.authService.updateProfile(req.user.sub, dto);
   }
 
   @Post('forgot-password')

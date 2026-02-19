@@ -3,6 +3,7 @@ import {
   InternalServerErrorException,
   Logger,
   UnauthorizedException,
+  ForbiddenException,
 } from '@nestjs/common';
 import { OAuth2Client } from 'google-auth-library';
 import { JwtService } from '@nestjs/jwt';
@@ -13,6 +14,7 @@ import * as bcrypt from 'bcrypt';
 import { BadRequestException } from '@nestjs/common';
 import { OtpService } from './otp/otp/otp.service';
 import { SignupDto } from './dto/signup.dto';
+import { UpdateProfileDto } from './dto/update-profile.dto';
 
 const SALT_ROUNDS = 10;
 
@@ -41,6 +43,11 @@ export class AuthService {
         redirectUri = 'https://www.quizplay.co.in/auth/google/callback';
       } else if (host.includes('quizplay.co.in')) {
         redirectUri = 'https://quizplay.co.in/auth/google/callback';
+      } else if (host.includes('capacitor://localhost')) {
+        redirectUri = 'capacitor://localhost/auth/google/callback';
+      } else if (host.includes('http://localhost') && !host.includes(':4200')) {
+        // Android Capacitor usually serves from http://localhost (no port)
+        redirectUri = 'http://localhost/auth/google/callback';
       }
 
       const tokenResponse = await axios.post(
@@ -71,6 +78,9 @@ export class AuthService {
       }
 
       const user = await this.userService.findOrCreateByGoogle(googlePayload);
+      if (user?.isActive === false) {
+        throw new ForbiddenException('Your account is inactive. Please contact admin.');
+      }
       return { ...(await this.generateTokens(user)), user: this.buildUserData(user) };
     } catch (error) {
       this.logger.error('Google login failed', error);
@@ -116,6 +126,9 @@ export class AuthService {
       if (!user) {
         throw new UnauthorizedException('User not found');
       }
+      if (user?.isActive === false) {
+        throw new ForbiddenException('Your account is inactive. Please contact admin.');
+      }
 
       const accessToken = await this.jwtService.signAsync(
         {
@@ -150,6 +163,8 @@ export class AuthService {
       role: user.role || 'user',
       firstName: user.firstName,
       lastName: user.lastName,
+      sex: user.sex || null,
+      about: user.about || '',
       //batchIds: user.batchIds || [],
       teachers: user.teachers || []
     };
@@ -189,6 +204,9 @@ export class AuthService {
     } else {
       user = await this.userService.findOrCreateByPhone(identifier);
     }
+    if (user?.isActive === false) {
+      throw new ForbiddenException('Your account is inactive. Please contact admin.');
+    }
 
     // 3. Generate Tokens
     return { ...(await this.generateTokens(user)), user: this.buildUserData(user) };
@@ -199,6 +217,9 @@ export class AuthService {
 
     if (!user) {
       throw new UnauthorizedException('Invalid email or password');
+    }
+    if (user?.isActive === false) {
+      throw new ForbiddenException('Your account is inactive. Please contact admin.');
     }
 
     return { ...(await this.generateTokens(user)), user: this.buildUserData(user) };
@@ -258,6 +279,10 @@ export class AuthService {
       };
     }
     
+  }
+
+  async updateProfile(userId: string, dto: UpdateProfileDto) {
+    return this.userService.updateBasicProfile(userId, dto);
   }
 
 }

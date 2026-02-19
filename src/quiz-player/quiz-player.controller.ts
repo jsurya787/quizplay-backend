@@ -24,6 +24,33 @@ export class QuizPlayerController {
     private readonly guestSessionService: GuestSessionService,
   ) {}
 
+  @UseGuards(JwtAuthGuard)
+  @Get('attempted/count')
+  async getAttemptedQuizzes(@Req() req: any) {
+    return this.service.getAttemptedQuizzesCount(req.user.sub);
+  }
+
+  @UseGuards(JwtAuthGuard)
+  @Get('attempted')
+  async getAttemptedQuizzesList(@Req() req: any) {
+    return this.service.getAttemptedQuizzes(req.user.sub);
+  }
+
+  @UseGuards(JwtAuthGuard)
+  @Get('teacher/submissions')
+  async getTeacherSubmissions(@Req() req: any) {
+    const teacherId = req.user.sub;
+    return this.service.getTeacherSubmissions(teacherId);
+  }
+
+  @UseGuards(JwtAuthGuard)
+  @Get('teacher/stats')
+  async getTeacherStats(@Req() req: any) {
+    const teacherId = req.user.sub;
+    const batchIds = req.user.batchIds || [];
+    return this.service.getTeacherStats(teacherId, batchIds);
+  }
+
   // 🎯 Get quiz for playing (NO answers - authenticated)
   @UseGuards(JwtAuthGuard, QuizAccessGuard)
   @Get(':quizId')
@@ -151,24 +178,4 @@ export class QuizPlayerController {
     return this.service.getQuizResult(attemptId);
   }
 
-  @UseGuards(JwtAuthGuard)
-  @Get('attempted/count')
-  async getAttemptedQuizzes(@Req() req: any) {
-    return this.service.getAttemptedQuizzesCount(req.user.sub);
-  }
-
-  @UseGuards(JwtAuthGuard)
-  @Get('teacher/submissions')
-  async getTeacherSubmissions(@Req() req: any) {
-    const teacherId = req.user.sub;
-    return this.service.getTeacherSubmissions(teacherId);
-  }
-
-  @UseGuards(JwtAuthGuard)
-  @Get('teacher/stats')
-  async getTeacherStats(@Req() req: any) {
-    const teacherId = req.user.sub;
-    const batchIds = req.user.batchIds || [];
-    return this.service.getTeacherStats(teacherId, batchIds);
-  }
 }
