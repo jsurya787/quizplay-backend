@@ -27,24 +27,26 @@ async function bootstrap() {
     origin: (origin, callback) => {
       const allowedOrigins = [
         'http://localhost:4200',
-        'http://localhost',
-        'https://localhost',       // 👈 ADDED (Android Capacitor default)
-        'capacitor://localhost',
         'http://localhost:8100',
-        'http://192.168.31.179:3000',
+        'http://localhost',
+        'https://localhost',
+        'capacitor://localhost',
+        'ionic://localhost',
         'https://quizplay.co.in',
+        'https://www.quizplay.co.in',
       ];
 
       if (!origin || allowedOrigins.includes(origin)) {
         return callback(null, true);
       }
 
-      return callback(new Error('Not allowed by CORS'), false);
+      return callback(new Error(`Not allowed by CORS: ${origin}`), false);
     },
     credentials: true,
     methods: ['GET', 'POST', 'PATCH', 'PUT', 'DELETE', 'OPTIONS'],
     allowedHeaders: ['Content-Type', 'Authorization', 'X-Client-Origin'],
   });
+
 
   app.useGlobalPipes(
     new ValidationPipe({
