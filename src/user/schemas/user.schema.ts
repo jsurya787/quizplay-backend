@@ -43,8 +43,6 @@ export class User {
   email?: string;
 
   @Prop({
-    unique: true,
-    sparse: true,
     lowercase: true,
     trim: true,
   })

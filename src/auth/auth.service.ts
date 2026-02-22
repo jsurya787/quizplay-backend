@@ -32,23 +32,55 @@ export class AuthService {
     private readonly otpService: OtpService,
   ) {}
 
+  private resolveGoogleRedirectUri(clientOriginOrReferrer: string): string {
+    const fallback = 'http://localhost:4200/auth/google/callback';
+    if (!clientOriginOrReferrer) {
+      return fallback;
+    }
+
+    let normalized = clientOriginOrReferrer.trim();
+    if (
+      !normalized.startsWith('http://') &&
+      !normalized.startsWith('https://') &&
+      !normalized.startsWith('capacitor://')
+    ) {
+      normalized = `https://${normalized}`;
+    }
+
+    try {
+      const parsed = new URL(normalized);
+      const origin = `${parsed.protocol}//${parsed.host}`;
+
+      if (parsed.protocol === 'capacitor:') {
+        return 'capacitor://localhost/auth/google/callback';
+      }
+
+      if (
+        parsed.hostname === 'localhost' ||
+        parsed.hostname === '127.0.0.1'
+      ) {
+        return `${origin}/auth/google/callback`;
+      }
+
+      if (
+        parsed.hostname === 'quizplay.co.in' ||
+        parsed.hostname === 'www.quizplay.co.in'
+      ) {
+        return `${origin}/auth/google/callback`;
+      }
+    } catch {
+      // Ignore parse errors and use fallback.
+    }
+
+    return fallback;
+  }
+
   // ============================
   // GOOGLE LOGIN
   // ============================
   async loginWithGoogle(code: string, host: string) {
     try {
-      let redirectUri = 'http://localhost:4200/auth/google/callback';
-
-      if (host.includes('www.quizplay.co.in')) {
-        redirectUri = 'https://www.quizplay.co.in/auth/google/callback';
-      } else if (host.includes('quizplay.co.in')) {
-        redirectUri = 'https://quizplay.co.in/auth/google/callback';
-      } else if (host.includes('capacitor://localhost')) {
-        redirectUri = 'capacitor://localhost/auth/google/callback';
-      } else if (host.includes('http://localhost') && !host.includes(':4200')) {
-        // Android Capacitor usually serves from http://localhost (no port)
-        redirectUri = 'http://localhost/auth/google/callback';
-      }
+      const redirectUri = this.resolveGoogleRedirectUri(host);
 
       const tokenResponse = await axios.post(
         'https://oauth2.googleapis.com/token',
@@ -83,7 +115,15 @@ export class AuthService {
       }
       return { ...(await this.generateTokens(user)), user: this.buildUserData(user) };
     } catch (error) {
-      this.logger.error('Google login failed', error);
+      const exchangeError = axios.isAxiosError(error) ? error.response?.data : null;
+      this.logger.error(
+        `Google login failed. origin=${host} error=${JSON.stringify(exchangeError || error)}`,
+      );
+      if (axios.isAxiosError(error) && error.response?.status === 400) {
+        throw new BadRequestException(
+          'Google OAuth token exchange failed. Check authorized redirect URI configuration.',
+        );
+      }
       throw new InternalServerErrorException('Google login failed');
     }
   }

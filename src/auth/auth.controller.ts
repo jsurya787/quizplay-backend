@@ -33,7 +33,14 @@ export class AuthController {
     @Res({ passthrough: true }) res: Response,
     @Req() req: Request,
   ) {
-    const clientOrigin = req.headers['x-client-origin'] || '';
+    const clientOriginHeader = req.headers['x-client-origin'];
+    const originHeader = req.headers.origin;
+    const refererHeader = req.headers.referer;
+    const clientOrigin =
+      (typeof clientOriginHeader === 'string' && clientOriginHeader) ||
+      (typeof originHeader === 'string' && originHeader) ||
+      (typeof refererHeader === 'string' && refererHeader) ||
+      '';
     const { accessToken, refreshToken, user } =
       await this.authService.loginWithGoogle(code, clientOrigin as string);
     // 🍪 SET REFRESH TOKEN AS HTTP-ONLY COOKIE
