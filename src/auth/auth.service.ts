@@ -325,4 +325,42 @@ export class AuthService {
     return this.userService.updateBasicProfile(userId, dto);
   }
 
+  // ============================
+  // NATIVE GOOGLE LOGIN (idToken from native SDK)
+  // ============================
+  async loginWithGoogleNative(idToken: string) {
+    try {
+      const ticket = await this.googleClient.verifyIdToken({
+        idToken,
+        audience: process.env.GOOGLE_CLIENT_ID!,
+      });
+
+      const payload = ticket.getPayload();
+      if (!payload) {
+        throw new UnauthorizedException('Invalid Google token payload');
+      }
+
+      const user = await this.userService.findOrCreateByGoogle(payload);
+      if (user?.isActive === false) {
+        throw new ForbiddenException(
+          'Your account is inactive. Please contact admin.',
+        );
+      }
+
+      return {
+        ...(await this.generateTokens(user)),
+        user: this.buildUserData(user),
+      };
+    } catch (error) {
+      this.logger.error(`Native Google login failed: ${error}`);
+      if (
+        error instanceof UnauthorizedException ||
+        error instanceof ForbiddenException
+      ) {
+        throw error;
+      }
+      throw new InternalServerErrorException('Google login failed');
+    }
+  }
+
 }

@@ -57,6 +57,29 @@ export class AuthController {
   }
 
   // ============================
+  // NATIVE GOOGLE LOGIN (idToken from native SDK)
+  // ============================
+  @Post('google/native')
+  async loginWithGoogleNative(
+    @Body('idToken') idToken: string,
+    @Res({ passthrough: true }) res: Response,
+  ) {
+    const { accessToken, refreshToken, user } =
+      await this.authService.loginWithGoogleNative(idToken);
+
+    // 🍪 Cookie config for native Capacitor apps (HTTPS API + capacitor:// origin)
+    res.cookie('refresh_token', refreshToken, {
+      httpOnly: true,
+      secure: true,
+      sameSite: 'none',
+      path: '/auth/refresh',
+      maxAge: 7 * 24 * 60 * 60 * 1000,
+    });
+
+    return { accessToken, user };
+  }
+
+  // ============================
   // REFRESH ACCESS TOKEN
   // ============================
   @Post('refresh')
