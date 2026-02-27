@@ -57,6 +57,15 @@ export class EmailSenderService {
     const uploadsDir = join(process.cwd(), 'uploads');
     const configuredLogoUrl = (this.configService.get<string>('APP_LOGO_URL') || '').trim();
     const isLocalLogoUrl = /localhost|127\.0\.0\.1/i.test(configuredLogoUrl);
+    const isHttpsLogoUrl = /^https:\/\//i.test(configuredLogoUrl);
+
+    // Gmail desktop is more reliable with hosted image URLs than SVG CID attachments.
+    if (isHttpsLogoUrl) {
+      return {
+        appLogoUrl: configuredLogoUrl,
+        attachments: [],
+      };
+    }
 
     const rasterCandidates = ['qp-logo.png', 'qp-logo.jpg', 'qp-logo.jpeg', 'qp-logo.webp'];
     for (const fileName of rasterCandidates) {
@@ -78,19 +87,13 @@ export class EmailSenderService {
 
     const svgPath = join(uploadsDir, 'qp-logo.svg');
     if (existsSync(svgPath) && (!configuredLogoUrl || isLocalLogoUrl)) {
-      return {
-        appLogoUrl: `cid:${this.logoCid}`,
-        attachments: [{
-          filename: 'qp-logo.svg',
-          path: svgPath,
-          cid: this.logoCid,
-          contentType: 'image/svg+xml',
-        }],
-      };
+      this.logger.warn(
+        'Found uploads/qp-logo.svg but Gmail desktop may not render SVG email logos. Use APP_LOGO_URL (https) or add uploads/qp-logo.png.',
+      );
     }
 
     return {
-      appLogoUrl: configuredLogoUrl,
+      appLogoUrl: isLocalLogoUrl ? '' : configuredLogoUrl,
       attachments: [],
     };
   }

@@ -109,6 +109,7 @@ export class UserService implements OnModuleInit {
   /* ------------------ AUTH HELPERS ------------------ */
 
   async findOrCreateByGoogle(payload: any) {
+    let isNewUser = false;
     let user = await this.userModel.findOne({ email: payload.email });
 
     if (!user) {
@@ -118,13 +119,14 @@ export class UserService implements OnModuleInit {
         googleId: payload.sub,
         isVerified: true,
       });
+      isNewUser = true;
     } else if (!user.googleId) {
       user.googleId = payload.sub;
       user.isVerified = true;
       await user.save();
     }
 
-    return user;
+    return { user, isNewUser };
   }
 
   async findOrCreateByPhone(phone: string) {

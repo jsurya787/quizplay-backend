@@ -49,7 +49,7 @@ export class AuthController {
       secure: false,        // 🔥 MUST be false on localhost
       sameSite: 'lax',      // 🔥 IMPORTANT for OAuth redirects
       path: '/auth/refresh',
-      maxAge: 7 * 24 * 60 * 60 * 1000,
+      maxAge: 30 * 24 * 60 * 60 * 1000,
     });
 
 
@@ -73,7 +73,7 @@ export class AuthController {
       secure: true,
       sameSite: 'none',
       path: '/auth/refresh',
-      maxAge: 7 * 24 * 60 * 60 * 1000,
+      maxAge: 30 * 24 * 60 * 60 * 1000,
     });
 
     return { accessToken, user };
@@ -127,7 +127,7 @@ export class AuthController {
       secure: false, // true in prod HTTPS
       sameSite: 'lax',
       path: '/auth/refresh',
-      maxAge: 7 * 24 * 60 * 60 * 1000,
+      maxAge: 30 * 24 * 60 * 60 * 1000,
     });
 
     return { accessToken, user, success: true, message: 'OTP verified' };
@@ -155,7 +155,7 @@ export class AuthController {
       secure: false,          // true in prod HTTPS
       sameSite: 'lax',
       path: '/auth/refresh',
-      maxAge: 7 * 24 * 60 * 60 * 1000,
+      maxAge: 30 * 24 * 60 * 60 * 1000,
     });
 
     return { accessToken, user };

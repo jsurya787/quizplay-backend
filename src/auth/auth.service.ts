@@ -15,6 +15,8 @@ import { BadRequestException } from '@nestjs/common';
 import { OtpService } from './otp/otp/otp.service';
 import { SignupDto } from './dto/signup.dto';
 import { UpdateProfileDto } from './dto/update-profile.dto';
+import { EmailSenderService } from 'src/mail/email-sender.service';
+import { buildWelcomeEmailTemplate } from 'src/mail/templates';
 
 const SALT_ROUNDS = 10;
 
@@ -30,6 +32,7 @@ export class AuthService {
     private readonly jwtService: JwtService,
     private readonly userService: UserService,
     private readonly otpService: OtpService,
+    private readonly emailSender: EmailSenderService,
   ) {}
 
   private resolveGoogleRedirectUri(clientOriginOrReferrer: string): string {
@@ -109,9 +112,13 @@ export class AuthService {
         throw new UnauthorizedException('Invalid Google token payload');
       }
 
-      const user = await this.userService.findOrCreateByGoogle(googlePayload);
+      const { user, isNewUser } =
+        await this.userService.findOrCreateByGoogle(googlePayload);
       if (user?.isActive === false) {
         throw new ForbiddenException('Your account is inactive. Please contact admin.');
+      }
+      if (isNewUser) {
+        await this.sendWelcomeEmail(user);
       }
       return { ...(await this.generateTokens(user)), user: this.buildUserData(user) };
     } catch (error) {
@@ -138,7 +145,7 @@ export class AuthService {
       { sub: userId, role: user.role, email: user.email, batchIds: user.batchIds || [], teachers: user.teachers || [] },
       {
         secret: process.env.JWT_ACCESS_SECRET!,
-        expiresIn: '24m',
+        expiresIn: '2h',
       },
     );
 
@@ -146,7 +153,7 @@ export class AuthService {
       { sub: userId },
       {
         secret: process.env.JWT_REFRESH_SECRET!,
-        expiresIn: '7d',
+        expiresIn: '30d',
       },
     );
 
@@ -180,7 +187,7 @@ export class AuthService {
         },
         {
           secret: process.env.JWT_ACCESS_SECRET!,
-          expiresIn: '24m',
+          expiresIn: '2h',
         },
       );
 
@@ -238,8 +245,16 @@ export class AuthService {
     let user;
     if (type === 'email') {
       user = await this.userService.findOrCreateByEmail(identifier);
+      if (!user) {
+        throw new UnauthorizedException('User not found');
+      }
+      const isFirstVerification = user && !user.isVerified;
       if (!user.isVerified) {
         await this.userService.markAsVerified(user._id.toString());
+        user.isVerified = true;
+      }
+      if (isFirstVerification) {
+        await this.sendWelcomeEmail(user);
       }
     } else {
       user = await this.userService.findOrCreateByPhone(identifier);
@@ -340,11 +355,15 @@ export class AuthService {
         throw new UnauthorizedException('Invalid Google token payload');
       }
 
-      const user = await this.userService.findOrCreateByGoogle(payload);
+      const { user, isNewUser } =
+        await this.userService.findOrCreateByGoogle(payload);
       if (user?.isActive === false) {
         throw new ForbiddenException(
           'Your account is inactive. Please contact admin.',
         );
+      }
+      if (isNewUser) {
+        await this.sendWelcomeEmail(user);
       }
 
       return {
@@ -360,6 +379,30 @@ export class AuthService {
         throw error;
       }
       throw new InternalServerErrorException('Google login failed');
+    }
+  }
+
+  private async sendWelcomeEmail(user: any) {
+    if (!user?.email) {
+      return;
+    }
+
+    const { appName, appLogoUrl, webUrl } = this.emailSender.getBranding();
+    const template = buildWelcomeEmailTemplate({
+      appName,
+      appLogoUrl,
+      webUrl,
+      firstName: user.firstName || user.name,
+    });
+
+    const sent = await this.emailSender.sendTemplatedEmail(
+      user.email,
+      template,
+      appName,
+    );
+
+    if (!sent) {
+      this.logger.warn(`Welcome email failed for ${user.email}`);
     }
   }
 

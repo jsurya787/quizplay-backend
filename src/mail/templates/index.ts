@@ -4,3 +4,4 @@ export * from './student.template';
 export * from './teacher.template';
 export * from './admin.template';
 export * from './quiz-published.template';
+export * from './welcome.template';
