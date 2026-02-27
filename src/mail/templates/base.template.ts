@@ -35,7 +35,7 @@ export function renderLightEmailLayout(input: BaseEmailLayoutInput): string {
       <table role="presentation" cellspacing="0" cellpadding="0" border="0" style="margin:0 auto;">
         <tr>
           <td style="text-align:center;">
-            <img src=\"${escapeHtml(input.appLogoUrl)}\" alt=\"${appName} Logo\" width="180" style=\"height:auto;max-height:56px;max-width:180px;display:block;border:0;outline:none;text-decoration:none;margin:0 auto;\" />
+            <img src=\"${escapeHtml(input.appLogoUrl)}\" alt=\"${appName} Logo\" width="88" style=\"height:auto;max-height:88px;max-width:88px;display:block;border:0;outline:none;text-decoration:none;margin:0 auto;\" />
           </td>
         </tr>
       </table>
