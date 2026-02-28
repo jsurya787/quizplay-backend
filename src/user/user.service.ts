@@ -706,6 +706,7 @@ export class UserService implements OnModuleInit {
     teacherId: string;
     quizTitle: string;
     difficulty?: string;
+    studentIds?: string[];
   }) {
     if (!Types.ObjectId.isValid(input.teacherId)) {
       throw new BadRequestException('Invalid teacher id');
@@ -726,9 +727,23 @@ export class UserService implements OnModuleInit {
       };
     }
 
-    const studentIds = Array.isArray(teacher.students)
+    const associatedStudentIds = Array.isArray(teacher.students)
       ? teacher.students.map((id) => id.toString())
       : [];
+
+    if (associatedStudentIds.length === 0) {
+      return {
+        success: true,
+        totalRecipients: 0,
+        sent: 0,
+        failed: 0,
+        message: 'No associated students found',
+      };
+    }
+
+    const studentIds = Array.isArray(input.studentIds) && input.studentIds.length > 0
+      ? input.studentIds.filter((id) => associatedStudentIds.includes(id))
+      : associatedStudentIds;
 
     if (studentIds.length === 0) {
       return {
@@ -736,7 +751,7 @@ export class UserService implements OnModuleInit {
         totalRecipients: 0,
         sent: 0,
         failed: 0,
-        message: 'No associated students found',
+        message: 'No assigned student recipients found',
       };
     }
 
@@ -808,6 +823,30 @@ export class UserService implements OnModuleInit {
         ? `Notification sent with partial failures (${sent}/${students.length})`
         : `Notification sent to all associated students (${sent})`,
     };
+  }
+
+  /**
+   * Return a list of student user ids who belong to any of the provided
+   * batch ids and have a valid email address.  This helper is used by the
+   * quiz service when sending notifications for quizzes assigned to
+   * batches.
+   */
+  async getActiveStudentIdsInBatches(batchIds: string[]): Promise<string[]> {
+    if (!Array.isArray(batchIds) || batchIds.length === 0) {
+      return [];
+    }
+
+    const students = await this.userModel
+      .find({
+        role: UserRole.STUDENT,
+        isActive: { $ne: false },
+        email: { $exists: true, $ne: null },
+        batchIds: { $in: batchIds.map((id) => new Types.ObjectId(id)) },
+      })
+      .select('_id')
+      .lean();
+
+    return students.map((s: any) => s._id.toString());
   }
 
   private async sendStudentAddedEmail(data: {

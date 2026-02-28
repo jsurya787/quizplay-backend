@@ -13,6 +13,7 @@ import {
 import { QuizService } from './quiz.service';
 import { CreateQuizDto } from './create-quiz.dto';
 import { AddQuestionDto } from './add-question.dto';
+import { NotifyStudentsDto } from './notify-students.dto';
 import { JwtAuthGuard } from 'src/auth/jwt/jwt/jwt-auth.guard';
 import { QuizAccessGuard } from 'src/auth/jwt/jwt/quiz-access.guard';
 import { RolesGuard } from 'src/auth/jwt/jwt/roles.guard';
@@ -88,12 +89,12 @@ export class QuizController {
     };
   }
 
-  //@Roles(Role.ADMIN, Role.TEACHER)
-  //@UseGuards(JwtAuthGuard)
+  @Roles(Role.ADMIN, Role.TEACHER, Role.STUDENT)
+  @UseGuards(JwtAuthGuard, RolesGuard)
   @Post('/public')
   async createPublic(@Body() dto: CreateQuizDto, @Req() req: any) {
-    const userId = req.user?.sub;
-    const userRole = req.user?.role;
+    const userId = req.user.sub;
+    const userRole = req.user.role;
     const quiz = await this.quizService.createDraft(dto, userId, userRole);
     return {
       success: true,
@@ -102,7 +103,7 @@ export class QuizController {
     };
   }
 
-  @Roles(Role.ADMIN, Role.TEACHER)
+  @Roles(Role.ADMIN, Role.TEACHER, Role.STUDENT)
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Patch(':quizId/public')
   async updatePublic(
@@ -110,8 +111,8 @@ export class QuizController {
     @Body() dto: CreateQuizDto,
     @Req() req: any,
   ) {
-    const userId = req.user.sub || '695f7eceebf73de912504bc3';
-    const quiz = await this.quizService.updateDraft(quizId, dto, userId);
+    const userId = req.user.sub;
+    const quiz = await this.quizService.updateDraft(quizId, dto, userId, req.user.role);
     return {
       success: true,
       message: 'Quiz draft updated',
@@ -120,10 +121,11 @@ export class QuizController {
   }
 
   // 🗑️ Delete Quiz
-  @Roles(Role.ADMIN, Role.TEACHER)
+  @Roles(Role.ADMIN, Role.TEACHER, Role.STUDENT)
+  @UseGuards(JwtAuthGuard, RolesGuard)
   @Delete(':quizId')
-  async deleteQuiz(@Param('quizId') quizId: string) {
-    await this.quizService.deleteQuiz(quizId);
+  async deleteQuiz(@Param('quizId') quizId: string, @Req() req: any) {
+    await this.quizService.deleteQuiz(quizId, req.user.sub, req.user.role);
     return {
       success: true,
       message: 'Quiz removed successfully',
@@ -131,13 +133,20 @@ export class QuizController {
   }
 
   // 🟡 Add / Save Question
-  @Roles(Role.ADMIN, Role.TEACHER)
+  @Roles(Role.ADMIN, Role.TEACHER, Role.STUDENT)
+  @UseGuards(JwtAuthGuard, RolesGuard)
   @Post(':quizId/questions')
   async addQuestion(
     @Param('quizId') quizId: string,
     @Body() dto: AddQuestionDto,
+    @Req() req: any,
   ) {
-    const quiz = await this.quizService.addQuestion(quizId, dto);
+    const quiz = await this.quizService.addQuestion(
+      quizId,
+      dto,
+      req.user.sub,
+      req.user.role,
+    );
     return {
       success: true,
       message: 'Question added successfully',
@@ -146,13 +155,20 @@ export class QuizController {
   }
 
   // 🟡 Add Multiple questions  / Save Question
-  @Roles(Role.ADMIN, Role.TEACHER)
+  @Roles(Role.ADMIN, Role.TEACHER, Role.STUDENT)
+  @UseGuards(JwtAuthGuard, RolesGuard)
   @Post(':quizId/questions/bulk')
   async addBulkQuestions(
     @Param('quizId') quizId: string,
     @Body() dto: AddQuestionDto[],
+    @Req() req: any,
   ) {
-    const quiz = await this.quizService.addBulkQuestions(quizId, dto);
+    const quiz = await this.quizService.addBulkQuestions(
+      quizId,
+      dto,
+      req.user.sub,
+      req.user.role,
+    );
     return {
       success: true,
       message: 'All Question added successfully',
@@ -161,14 +177,22 @@ export class QuizController {
   }
 
   // Update Question
-  @Roles(Role.ADMIN, Role.TEACHER)
+  @Roles(Role.ADMIN, Role.TEACHER, Role.STUDENT)
+  @UseGuards(JwtAuthGuard, RolesGuard)
   @Patch(':quizId/questions/:questionId')
   async updateQuestion(
     @Param('quizId') quizId: string,
     @Param('questionId') questionId: string,
     @Body() dto: AddQuestionDto,
+    @Req() req: any,
   ) {
-    const quiz = await this.quizService.updateQuestion(quizId, questionId, dto);
+    const quiz = await this.quizService.updateQuestion(
+      quizId,
+      questionId,
+      dto,
+      req.user.sub,
+      req.user.role,
+    );
 
     return {
       success: true,
@@ -178,13 +202,20 @@ export class QuizController {
   }
 
   // 🗑️ Delete Question
-  @Roles(Role.ADMIN, Role.TEACHER)
+  @Roles(Role.ADMIN, Role.TEACHER, Role.STUDENT)
+  @UseGuards(JwtAuthGuard, RolesGuard)
   @Delete(':quizId/questions/:questionId')
   async removeQuestion(
     @Param('quizId') quizId: string,
     @Param('questionId') questionId: string,
+    @Req() req: any,
   ) {
-    const quiz = await this.quizService.removeQuestion(quizId, questionId);
+    const quiz = await this.quizService.removeQuestion(
+      quizId,
+      questionId,
+      req.user.sub,
+      req.user.role,
+    );
     return {
       success: true,
       message: 'Question removed successfully',
@@ -193,10 +224,15 @@ export class QuizController {
   }
 
   // 🚀 Publish Quiz
-  @Roles(Role.ADMIN, Role.TEACHER)
+  @Roles(Role.ADMIN, Role.TEACHER, Role.STUDENT)
+  @UseGuards(JwtAuthGuard, RolesGuard)
   @Post(':quizId/publish')
-  async publish(@Param('quizId') quizId: string) {
-    const quiz = await this.quizService.publishQuiz(quizId);
+  async publish(@Param('quizId') quizId: string, @Req() req: any) {
+    const quiz = await this.quizService.publishQuiz(
+      quizId,
+      req.user.sub,
+      req.user.role,
+    );
     return {
       success: true,
       message: 'Quiz published successfully',
@@ -207,11 +243,16 @@ export class QuizController {
   @Roles(Role.ADMIN, Role.TEACHER)
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Post(':quizId/notify-students')
-  async notifyStudents(@Param('quizId') quizId: string, @Req() req: any) {
+  async notifyStudents(
+    @Param('quizId') quizId: string,
+    @Body() body: NotifyStudentsDto,
+    @Req() req: any,
+  ) {
     const result = await this.quizService.notifyStudentsForPublishedQuiz(
       quizId,
       req.user.sub,
       req.user.role,
+      body.sendToAll === true,
     );
     return {
       success: true,
@@ -223,12 +264,29 @@ export class QuizController {
 
 
   @Roles(Role.ADMIN, Role.TEACHER)
+  @UseGuards(JwtAuthGuard, RolesGuard)
   @Post(':quizId/assign-batches')
   assignBatches(
     @Param('quizId') quizId: string,
     @Body() body: { batchIds: string[] },
     @Req() req: any,
   ) {
-    return this.quizService.assignBatches(quizId, body.batchIds, req.user.sub);
+    return this.quizService.assignBatches(
+      quizId,
+      body.batchIds,
+      req.user.sub,
+      req.user.role,
+    );
+  }
+
+  @Roles(Role.ADMIN, Role.TEACHER)
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Post(':quizId/assign-users')
+  assignUsers(
+    @Param('quizId') quizId: string,
+    @Body() body: { userIds: string[] },
+    @Req() req: any,
+  ) {
+    return this.quizService.assignUsers(quizId, body.userIds, req.user.sub, req.user.role);
   }
 }

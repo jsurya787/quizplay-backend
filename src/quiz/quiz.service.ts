@@ -21,6 +21,20 @@ export class QuizService {
     private readonly quizModel: Model<QuizDocument>,
   ) {}
 
+  private assertQuizOwnerOrAdmin(
+    quiz: Pick<Quiz, 'createdBy'>,
+    actorUserId: string,
+    actorRole?: Role | string,
+  ) {
+    if (actorRole === Role.ADMIN) {
+      return;
+    }
+
+    if (quiz.createdBy.toString() !== actorUserId) {
+      throw new ForbiddenException('Not your quiz');
+    }
+  }
+
   // 📄 Get quizzes with limit (for quiz list page)
 async findAll(
   limit?: number,
@@ -35,9 +49,22 @@ async findAll(
   const safeLimit = limit && limit > 0 && limit <= 100 ? limit : 20;
   const safeSkip = skip && skip >= 0 ? skip : 0;
 
+  const applyDefaultPublicScope = async () => {
+    filter.visibility = 'PUBLIC';
+    const admins = await this.userService.getListOfAdmins();
+
+    if (!admins.length) {
+      return false;
+    }
+
+    filter.createdBy = {
+      $in: admins.map(id => new Types.ObjectId(id)),
+    };
+    return true;
+  };
+
   const filter: any = {
     status: 'published',
-    visibility: 'PUBLIC',
   };
 
   // 🔍 SEARCH
@@ -56,39 +83,47 @@ async findAll(
   }
 
   // 👤 TEACHER QUIZZES ONLY (For Students)
-  if (teacherQuizzesOnly && currentUserId) {
-    const user = await this.userService.findById(currentUserId);
-    if (user && user.teachers && user.teachers.length > 0) {
-      filter.createdBy = { $in: user.teachers };
-      if (subjectId) {
-       filter.subjectId = subjectId;
+  if (teacherQuizzesOnly) {
+    if (!currentUserId) {
+      const hasDefaultScope = await applyDefaultPublicScope();
+      if (!hasDefaultScope) {
+        return { total: 0, limit: safeLimit, skip: safeSkip, data: [] };
       }
-      if (difficulty) {
-        filter.difficulty = difficulty;
+    }
+
+    if (currentUserId) {
+      const user = await this.userService.findById(currentUserId);
+      const teacherIds = (user?.teachers || []).map((id: any) => id.toString());
+
+      if (teacherIds.length === 0) {
+        const hasDefaultScope = await applyDefaultPublicScope();
+        if (!hasDefaultScope) {
+          return { total: 0, limit: safeLimit, skip: safeSkip, data: [] };
+        }
+      } else {
+        filter.createdBy = {
+          $in: teacherIds.map((id: string) => new Types.ObjectId(id)),
+        };
+        filter.$or = [
+          { visibility: 'PUBLIC' },
+          { allowedUserIds: new Types.ObjectId(currentUserId) },
+        ];
       }
-       delete filter.visibility;
-    } else {
-      // If no teachers, return empty
-      return { total: 0, limit: safeLimit, skip: safeSkip, data: [] };
+
+      // If no teachers, filter is already set to public default scope above.
     }
   } else if (createdByMe) {
-    if (!Types.ObjectId.isValid(createdByMe)) {
+    const ownerId = createdByMe === 'true' ? currentUserId : createdByMe;
+    if (!ownerId || !Types.ObjectId.isValid(ownerId)) {
       throw new BadRequestException('Invalid createdByMe user id');
     }
     // 👤 CREATED BY ME (overrides admin filter if present)
-    filter.createdBy = new Types.ObjectId(createdByMe);
-    delete filter.visibility;
+    filter.createdBy = new Types.ObjectId(ownerId);
   } else {
-    // 👑 ONLY ADMIN QUIZZES (Default)
-    const admins = await this.userService.getListOfAdmins();
-
-    if (!admins.length) {
+    const hasDefaultScope = await applyDefaultPublicScope();
+    if (!hasDefaultScope) {
       return { total: 0, limit: safeLimit, skip: safeSkip, data: [] };
     }
-
-    filter.createdBy = {
-      $in: admins.map(id => new Types.ObjectId(id)),
-    };
   }
 
   const quizzes = await this.quizModel
@@ -97,7 +132,7 @@ async findAll(
     .skip(safeSkip)
     .limit(safeLimit)
     .select(
-      'title description difficulty timeLimit totalMarks questions createdAt'
+      'title description subjectId difficulty timeLimit totalMarks questions createdAt status visibility'
     )
     .lean({ virtuals: true });
 
@@ -134,6 +169,15 @@ async findAll(
       }
     }
 
+    const visibility =
+      role === Role.ADMIN
+        ? 'PUBLIC'
+        : role === Role.STUDENT
+          ? 'RESTRICTED'
+          : dto.visibility === 'PUBLIC'
+            ? 'PUBLIC'
+            : 'RESTRICTED';
+
     return await this.quizModel.create({
       title: dto.title,
       description: dto.description, // ✅ NEW
@@ -143,13 +187,13 @@ async findAll(
       status: 'draft',
       questions: [],
       totalMarks: 0,
-      visibility: role === Role.ADMIN ? 'PUBLIC' : 'RESTRICTED',
+      visibility,
       createdBy: new Types.ObjectId(userId), // ✅ FIX
     });
   }
 
   // 🟡 Update Draft Quiz
-  async updateDraft(quizId: string, dto: CreateQuizDto, userId: string) {
+  async updateDraft(quizId: string, dto: CreateQuizDto, userId: string, role?: string) {
     const quiz = await this.quizModel.findOne({
       _id:  new Types.ObjectId(quizId),
       createdBy: new Types.ObjectId(userId),
@@ -159,18 +203,51 @@ async findAll(
       throw new NotFoundException('Quiz not found or not owned by user');
     }
 
-    Object.assign(quiz, dto);
+    const updatePayload: Partial<CreateQuizDto> = {
+      title: dto.title,
+      description: dto.description,
+      subjectId: dto.subjectId,
+      difficulty: dto.difficulty,
+      timeLimit: dto.timeLimit,
+    };
+
+    if (role === Role.ADMIN) {
+      updatePayload.visibility = 'PUBLIC';
+    } else if (role === Role.STUDENT) {
+      updatePayload.visibility = 'RESTRICTED';
+    } else if (role === Role.TEACHER && dto.visibility) {
+      updatePayload.visibility = dto.visibility === 'PUBLIC' ? 'PUBLIC' : 'RESTRICTED';
+    }
+
+    Object.assign(quiz, updatePayload);
     return await quiz.save();
   }
 
   // delete quiz 
-  async deleteQuiz(quizId: string) {
-    return this.quizModel.findByIdAndDelete(quizId);
+  async deleteQuiz(quizId: string, actorUserId: string, actorRole?: Role | string) {
+    if (!Types.ObjectId.isValid(quizId)) {
+      throw new BadRequestException('Invalid quiz id');
+    }
+
+    const quiz = await this.quizModel.findById(quizId);
+    if (!quiz) {
+      throw new NotFoundException('Quiz not found');
+    }
+
+    this.assertQuizOwnerOrAdmin(quiz, actorUserId, actorRole);
+    await quiz.deleteOne();
+
+    return { success: true };
   }
 
 
   // 🟡 Add Question
-  async addQuestion(quizId: string, dto: AddQuestionDto) {
+  async addQuestion(
+    quizId: string,
+    dto: AddQuestionDto,
+    actorUserId: string,
+    actorRole?: Role | string,
+  ) {
     if (!Types.ObjectId.isValid(quizId)) {
       throw new BadRequestException('Invalid quiz id');
     }
@@ -180,13 +257,14 @@ async findAll(
       throw new BadRequestException('Exactly one correct option is required');
     }
 
-    const quiz = await this.quizModel.findOne({
-      _id: quizId,
-      status: 'draft',
-    });
+    const quiz = await this.quizModel.findById(quizId);
 
     if (!quiz) {
-      throw new NotFoundException('Quiz not found or already published');
+      throw new NotFoundException('Quiz not found');
+    }
+    this.assertQuizOwnerOrAdmin(quiz, actorUserId, actorRole);
+    if (quiz.status !== 'draft') {
+      throw new BadRequestException('Quiz is already published');
     }
 
     quiz.questions.push(dto as any);
@@ -197,18 +275,24 @@ async findAll(
   }
 
   // Add Bulk Questions
-  async addBulkQuestions(quizId: string, dtos: AddQuestionDto[]) {
+  async addBulkQuestions(
+    quizId: string,
+    dtos: AddQuestionDto[],
+    actorUserId: string,
+    actorRole?: Role | string,
+  ) {
     if (!Types.ObjectId.isValid(quizId)) {
       throw new BadRequestException('Invalid quiz id');
     }
 
-    const quiz = await this.quizModel.findOne({
-      _id: quizId,
-      status: 'draft',
-    });
+    const quiz = await this.quizModel.findById(quizId);
 
     if (!quiz) {
-      throw new NotFoundException('Quiz not found or already published');
+      throw new NotFoundException('Quiz not found');
+    }
+    this.assertQuizOwnerOrAdmin(quiz, actorUserId, actorRole);
+    if (quiz.status !== 'draft') {
+      throw new BadRequestException('Quiz is already published');
     }
 
     for (const dto of dtos) {
@@ -230,9 +314,15 @@ async findAll(
     quizId: string,
     questionId: string, 
     dto: AddQuestionDto,
+    actorUserId: string,
+    actorRole?: Role | string,
   ) {
     const quiz = await this.quizModel.findById(quizId);
     if (!quiz) throw new NotFoundException('Quiz not found');
+    this.assertQuizOwnerOrAdmin(quiz, actorUserId, actorRole);
+    if (quiz.status !== 'draft') {
+      throw new BadRequestException('Quiz is already published');
+    }
 
     const index = quiz.questions.findIndex(
       q => q._id.toString() === questionId,
@@ -256,18 +346,24 @@ async findAll(
   }
 
   // 🗑️ Remove Question
-  async removeQuestion(quizId: string, questionId: string) {
+  async removeQuestion(
+    quizId: string,
+    questionId: string,
+    actorUserId: string,
+    actorRole?: Role | string,
+  ) {
     if (!Types.ObjectId.isValid(quizId) || !Types.ObjectId.isValid(questionId)) {
     throw new BadRequestException('Invalid id');
     }
 
-    const quiz = await this.quizModel.findOne({
-    _id: quizId,
-    status: 'draft',
-    });
+    const quiz = await this.quizModel.findById(quizId);
 
     if (!quiz) {
-    throw new NotFoundException('Quiz not found or already published');
+      throw new NotFoundException('Quiz not found');
+    }
+    this.assertQuizOwnerOrAdmin(quiz, actorUserId, actorRole);
+    if (quiz.status !== 'draft') {
+      throw new BadRequestException('Quiz is already published');
     }
 
     const questionIndex = quiz.questions.findIndex(
@@ -289,24 +385,46 @@ async findAll(
 
 
   // 🚀 Publish Quiz
-  async publishQuiz(quizId: string) {
+  async publishQuiz(
+    quizId: string,
+    actorUserId: string,
+    actorRole?: Role | string,
+  ) {
     const quiz = await this.quizModel.findById(quizId);
 
     if (!quiz) {
       throw new NotFoundException('Quiz not found');
     }
+    this.assertQuizOwnerOrAdmin(quiz, actorUserId, actorRole);
 
     if (quiz.questions.length === 0) {
       throw new BadRequestException('Add at least one question');
     }
 
+    const creator = await this.userService.findById(quiz.createdBy.toString());
+    if (
+      creator?.role === 'TEACHER' &&
+      quiz.visibility === 'RESTRICTED' &&
+      (!quiz.allowedUserIds || quiz.allowedUserIds.length === 0)
+    ) {
+      throw new BadRequestException('Assign at least one student before publishing this quiz');
+    }
+
+    const wasDraft = quiz.status === 'draft';
+
     quiz.status = 'published';
     await quiz.save();
 
-    // TODO: When enabling "email all associated students on publish",
-    // avoid sending emails inline in this request.
-    // If publish becomes slow or blocks Nest event loop, move notification work
-    // to a background queue (RabbitMQ/Bull) and process asynchronously.
+    // notify students whenever the quiz is (re)published.  if it's the first
+    // publication we will end up contacting everyone; if it's a subsequent
+    // publish/republish the notify method takes care of skipping students who
+    // have already been emailed.
+    try {
+      await this.notifyStudentsForPublishedQuiz(quizId, actorUserId, actorRole || '');
+    } catch (err) {
+      // log error but do not prevent the publish call from returning
+      console.error('failed to send quiz notifications during publish', err);
+    }
 
     // 🚀 Warm Redis Cache
     await this.syncQuizCache(quizId);
@@ -318,8 +436,20 @@ async findAll(
     quizId: string,
     actorUserId: string,
     actorRole: string,
+    /**
+     * When true notifications will be sent to every student regardless of
+     * whether they have been emailed previously.  When false (the default)
+     * the quiz record is consulted for `notifiedStudentIds` and only new
+     * recipients are notified.
+     */
+    sendToAll = false,
   ) {
-    const quiz = await this.quizModel.findById(quizId).select('title difficulty status createdBy').lean();
+    const quiz = await this.quizModel
+      .findById(quizId)
+      .select(
+        'title difficulty status createdBy allowedUserIds visibility notifiedStudentIds',
+      )
+      .lean();
     if (!quiz) {
       throw new NotFoundException('Quiz not found');
     }
@@ -338,13 +468,72 @@ async findAll(
       throw new ForbiddenException('You can notify students only for your own quizzes');
     }
 
+    // determine the base set of recipients based on visibility.  there are
+    // two ways a teacher can restrict a quiz: explicit user selection or by
+    // assigning batches.  we attempt to honour both; when both lists are
+    // provided we treat the union as the allowed set.
+    let targetStudentIds: string[] = [];
+    if (quiz.visibility === 'RESTRICTED') {
+      // users explicitly chosen
+      if (quiz.allowedUserIds && quiz.allowedUserIds.length > 0) {
+        targetStudentIds.push(...quiz.allowedUserIds.map((id: any) => id.toString()));
+      }
+      // students belonging to allowed batches
+      if (quiz.allowedBatchIds && quiz.allowedBatchIds.length > 0) {
+        const batchStudentIds = await this.userService.getActiveStudentIdsInBatches(
+          quiz.allowedBatchIds.map((id: any) => id.toString()),
+        );
+        targetStudentIds.push(...batchStudentIds);
+      }
+      // dedupe
+      targetStudentIds = Array.from(new Set(targetStudentIds));
+    }
+
+    if (!sendToAll) {
+      const already = new Set(
+        (quiz.notifiedStudentIds || []).map((id: any) => id.toString()),
+      );
+      targetStudentIds = targetStudentIds.filter((id) => !already.has(id));
+    }
+
+    if (quiz.visibility === 'RESTRICTED' && targetStudentIds.length === 0) {
+      return {
+        success: true,
+        message: 'No assigned students for this quiz',
+        notification: {
+          success: true,
+          totalRecipients: 0,
+          sent: 0,
+          failed: 0,
+          message: 'No assigned student recipients found',
+        },
+      };
+    }
+
     // NOTE: This is currently synchronous. If this endpoint becomes slow under higher volume,
     // move notification sending to RabbitMQ/Bull worker queue.
     const notification = await this.userService.notifyAssociatedStudentsAboutPublishedQuiz({
       teacherId: quiz.createdBy.toString(),
       quizTitle: quiz.title,
       difficulty: quiz.difficulty,
+      studentIds: quiz.visibility === 'RESTRICTED' ? targetStudentIds : undefined,
     });
+
+    // update quiz metadata so we know who has been contacted
+    if (targetStudentIds.length > 0) {
+      const uniqueIds = new Set(
+        (quiz.notifiedStudentIds || []).map((id: any) => id.toString()),
+      );
+      targetStudentIds.forEach((id) => uniqueIds.add(id));
+
+      await this.quizModel.updateOne(
+        { _id: quizId },
+        {
+          notifiedStudentIds: Array.from(uniqueIds).map((id) => new Types.ObjectId(id)),
+          lastNotifiedAt: new Date(),
+        },
+      );
+    }
 
     return {
       success: true,
@@ -383,18 +572,57 @@ async findAll(
     quizId: string,
     batchIds: string[],
     teacherId: string,
+    actorRole: Role,
   ) {
-    const quiz = await this.quizModel.findOne({
-      _id: quizId,
-      createdBy: teacherId,
-    });
+    if (!Types.ObjectId.isValid(quizId)) {
+      throw new BadRequestException('Invalid quiz id');
+    }
+
+    const quiz = await this.quizModel.findById(quizId);
 
     if (!quiz) {
+      throw new NotFoundException('Quiz not found');
+    }
+
+    const isAdmin = actorRole === Role.ADMIN;
+    if (!isAdmin && quiz.createdBy.toString() !== teacherId) {
       throw new ForbiddenException('Not your quiz');
     }
 
     quiz.allowedBatchIds = batchIds.map(id => new Types.ObjectId(id));
     quiz.visibility = 'RESTRICTED';
+
+    const associationTeacherId = isAdmin ? quiz.createdBy.toString() : teacherId;
+
+    // if the quiz is already published we should notify any students who are
+    // indirectly added via the newly assigned batches and haven't received an
+    // email yet.
+    if (quiz.status === 'published') {
+      try {
+        const previouslyNotified = new Set(
+          (quiz.notifiedStudentIds || []).map((id: any) => id.toString()),
+        );
+        const allBatchStudentIds = await this.userService.getActiveStudentIdsInBatches(
+          batchIds,
+        );
+        const newly = allBatchStudentIds.filter((id) => !previouslyNotified.has(id));
+        if (newly.length > 0) {
+          await this.userService.notifyAssociatedStudentsAboutPublishedQuiz({
+            teacherId: associationTeacherId,
+            quizTitle: quiz.title,
+            difficulty: quiz.difficulty,
+            studentIds: newly,
+          });
+          const unique = new Set(previouslyNotified);
+          newly.forEach(id => unique.add(id));
+          quiz.notifiedStudentIds = Array.from(unique).map(id => new Types.ObjectId(id));
+          quiz.lastNotifiedAt = new Date();
+        }
+      } catch (err) {
+        console.error('failed to notify newly assigned batches', err);
+      }
+    }
+
     await quiz.save();
 
     // 🔥 Redis warm-up
@@ -408,18 +636,104 @@ async findAll(
     return { success: true, message: 'Quiz published successfully' };
   }
 
+  async assignUsers(
+    quizId: string,
+    userIds: string[],
+    teacherId: string,
+    actorRole: Role,
+  ) {
+    if (!Types.ObjectId.isValid(quizId)) {
+      throw new BadRequestException('Invalid quiz id');
+    }
+
+    const quiz = await this.quizModel.findById(quizId);
+
+    if (!quiz) {
+      throw new NotFoundException('Quiz not found');
+    }
+
+    const isAdmin = actorRole === Role.ADMIN;
+    if (!isAdmin && quiz.createdBy.toString() !== teacherId) {
+      throw new ForbiddenException('Not your quiz');
+    }
+
+    const sanitizedUserIds = Array.from(
+      new Set((userIds || []).filter((id) => Types.ObjectId.isValid(id))),
+    );
+
+    if (sanitizedUserIds.length === 0) {
+      throw new BadRequestException('Select at least one valid student');
+    }
+
+    const associationTeacherId = isAdmin ? quiz.createdBy.toString() : teacherId;
+    const teacher = await this.userService.findById(associationTeacherId);
+    const associatedStudentIds = new Set(
+      (teacher?.students || []).map((id: any) => id.toString()),
+    );
+
+    const invalidIds = sanitizedUserIds.filter((id) => !associatedStudentIds.has(id));
+    if (invalidIds.length > 0) {
+      throw new BadRequestException('Some selected users are not associated with this teacher');
+    }
+
+    // determine which students haven't been notified yet (if any)
+    const previouslyNotified = new Set(
+      (quiz.notifiedStudentIds || []).map((id: any) => id.toString()),
+    );
+
+    const newlyAssigned = sanitizedUserIds.filter((id) => !previouslyNotified.has(id));
+
+    quiz.allowedUserIds = sanitizedUserIds.map((id) => new Types.ObjectId(id));
+    quiz.visibility = 'RESTRICTED';
+
+    // if there are new students and the quiz is already published, send them a
+    // notification right away and update metadata
+    if (newlyAssigned.length > 0 && quiz.status === 'published') {
+      try {
+        await this.userService.notifyAssociatedStudentsAboutPublishedQuiz({
+          teacherId: associationTeacherId,
+          quizTitle: quiz.title,
+          difficulty: quiz.difficulty,
+          studentIds: newlyAssigned,
+        });
+        // mark them as notified
+        const unique = new Set(previouslyNotified);
+        newlyAssigned.forEach((id) => unique.add(id));
+        quiz.notifiedStudentIds = Array.from(unique).map((id) => new Types.ObjectId(id));
+        quiz.lastNotifiedAt = new Date();
+      } catch (err) {
+        // log but don't fail the request
+        console.error('failed to notify newly assigned users', err);
+      }
+    }
+
+    await quiz.save();
+
+    await redis.del(`quiz:${quizId}:users`);
+    await redis.sadd(`quiz:${quizId}:users`, ...sanitizedUserIds);
+    await redis.expire(`quiz:${quizId}:users`, 3600);
+
+    await this.syncQuizCache(quizId);
+
+    return { success: true, message: 'Assigned users updated successfully' };
+  }
+
   /**
    * 🔄 Sync quiz metadata to Redis
    */
   async syncQuizCache(quizId: string) {
     if (!Types.ObjectId.isValid(quizId)) return;
 
-    const quiz = await this.quizModel.findById(quizId).select('visibility createdBy allowedBatchIds').lean();
+    const quiz = await this.quizModel
+      .findById(quizId)
+      .select('visibility createdBy allowedBatchIds allowedUserIds')
+      .lean();
     if (!quiz) return;
 
     const pipeline = redis.pipeline();
     const metaKey = `quiz:${quizId}:meta`;
     const batchKey = `quiz:${quizId}:batches`;
+    const userKey = `quiz:${quizId}:users`;
 
     // 1️⃣ Store Meta Hash
     pipeline.hset(metaKey, {
@@ -435,7 +749,14 @@ async findAll(
       pipeline.expire(batchKey, 3600);
     }
 
-    // 3️⃣ Legacy flag (for backward compatibility or fast check)
+    // 3️⃣ Store Assigned Users Set
+    pipeline.del(userKey);
+    if (quiz.allowedUserIds && quiz.allowedUserIds.length > 0) {
+      pipeline.sadd(userKey, ...quiz.allowedUserIds.map((id) => id.toString()));
+      pipeline.expire(userKey, 3600);
+    }
+
+    // 4️⃣ Legacy flag (for backward compatibility or fast check)
     if (quiz.visibility === 'PUBLIC') {
       pipeline.set(`quiz:${quizId}:public`, '1', 'EX', 3600);
     } else {

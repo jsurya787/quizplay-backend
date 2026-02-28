@@ -1,4 +1,4 @@
-import { IsEnum, IsMongoId, IsNotEmpty, IsNumber, IsString, MaxLength } from 'class-validator';
+import { IsEnum, IsMongoId, IsNotEmpty, IsNumber, IsOptional, IsString, MaxLength } from 'class-validator';
 
 export class CreateQuizDto {
   @IsString()
@@ -20,4 +20,8 @@ export class CreateQuizDto {
 
   @IsNumber()
   timeLimit!: number;
+
+  @IsOptional()
+  @IsEnum(['PUBLIC', 'RESTRICTED'])
+  visibility?: 'PUBLIC' | 'RESTRICTED';
 }

@@ -2,6 +2,7 @@ import {
   Injectable,
   BadRequestException,
   NotFoundException,
+  ForbiddenException,
 } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model, Types } from 'mongoose';
@@ -67,13 +68,18 @@ export class QuizPlayerService {
   }
 
   // 🎯 Get quiz WITHOUT correct answers
-  async getPlayableQuiz(quizId: string) {
+  async getPlayableQuiz(quizId: string, onlyPublic = false) {
     if (!Types.ObjectId.isValid(quizId)) {
       throw new BadRequestException('Invalid quiz id');
     }
 
+    const filter: any = { _id: quizId, status: 'published' };
+    if (onlyPublic) {
+      filter.visibility = 'PUBLIC';
+    }
+
     const quiz = await this.quizModel
-      .findOne({ _id: quizId, status: 'published' })
+      .findOne(filter)
       .lean();
 
     if (!quiz) {
@@ -114,6 +120,15 @@ export class QuizPlayerService {
 
   // 📝 Start attempt (guest users)
   async startAttemptGuest(quizId: string, guestSessionId: string) {
+    const quiz = await this.quizModel
+      .findOne({ _id: quizId, status: 'published', visibility: 'PUBLIC' })
+      .select('_id')
+      .lean();
+
+    if (!quiz) {
+      throw new ForbiddenException('This quiz is not available for guest users');
+    }
+
     const attempt = await this.attemptModel.create({
       quizId: new Types.ObjectId(quizId),
       guestSessionId: new Types.ObjectId(guestSessionId),

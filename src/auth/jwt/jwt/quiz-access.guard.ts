@@ -44,7 +44,14 @@ export class QuizAccessGuard implements CanActivate {
     // ✅ Rule 2: Ownership
     if (quizMeta.createdBy === userId) return true;
 
-    // 2️⃣ Relation Checks (Teacher-Student & Batches)
+    // 2️⃣ Explicit assigned-user check (strict mode)
+    const hasAssignedUsers = await redis.exists(`quiz:${quizId}:users`);
+    if (hasAssignedUsers) {
+      const isAssigned = await redis.sismember(`quiz:${quizId}:users`, userId);
+      return Boolean(isAssigned);
+    }
+
+    // 3️⃣ Relation Checks (Teacher-Student & Batches)
     // First, ensure user relationships are in Redis
     const hasTeachers = await redis.exists(`user:${userId}:teachers`);
     const hasBatches = await redis.exists(`user:${userId}:batches`);
@@ -70,4 +77,3 @@ export class QuizAccessGuard implements CanActivate {
     return false;
   }
 }
-

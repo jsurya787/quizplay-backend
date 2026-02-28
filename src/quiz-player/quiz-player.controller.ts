@@ -63,7 +63,7 @@ export class QuizPlayerController {
   async getQuizPublic(@Param('quizId') quizId: string) {
     // Note: We might want a public version of QuizAccessGuard eventually 
     // but for now we'll allow public access to the playable quiz data.
-    return this.service.getPlayableQuiz(quizId);
+    return this.service.getPlayableQuiz(quizId, true);
   }
 
   // 📝 Start attempt

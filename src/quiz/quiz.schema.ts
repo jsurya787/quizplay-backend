@@ -86,11 +86,28 @@ export class Quiz {
   allowedBatchIds!: Types.ObjectId[];
 
   @Prop({
+    type: [Types.ObjectId],
+    ref: 'User',
+    default: [],
+  })
+  allowedUserIds!: Types.ObjectId[];
+
+  @Prop({
     enum: ['PUBLIC', 'RESTRICTED'],
     default: 'PUBLIC',
     index: true,
   })
   visibility!: 'PUBLIC' | 'RESTRICTED';
+
+  @Prop({
+    type: [Types.ObjectId],
+    ref: 'User',
+    default: [],
+  })
+  notifiedStudentIds!: Types.ObjectId[];
+
+  @Prop()
+  lastNotifiedAt?: Date;
 }
 
 export type QuizDocument = Quiz & Document;
