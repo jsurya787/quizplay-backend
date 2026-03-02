@@ -12,6 +12,7 @@ import {
   QuizAttempt,
   QuizAttemptDocument,
 } from './quiz-attempt.schema';
+import { redis } from 'src/redis/redis.provider';
 
 type QuestionResult = {
   questionId: Types.ObjectId;
@@ -299,6 +300,12 @@ export class QuizPlayerService {
 
     await attempt.save();
 
+    // Increment Redis Counter for authenticated users
+    if (!guestSessionId && attempt.userId) {
+      const cacheKey = `user:${attempt.userId.toString()}:attemptedQuizzes`;
+      await redis.del(cacheKey); // 🧹 Invalidate cache to force re-count on next load
+    }
+
     return {
       quizTitle: quiz.title,
       totalMarks: quiz.totalMarks,
@@ -316,11 +323,23 @@ export class QuizPlayerService {
       throw new BadRequestException('Invalid user id');
     }
 
-    const userObjectId = new Types.ObjectId(userId);
+    const cacheKey = `user:${userId}:attemptedQuizzes`;
+    
+    // Check Redis Cache First
+    const cachedCount = await redis.get(cacheKey);
+    if (cachedCount !== null) {
+      return { success: true, count: parseInt(cachedCount, 10) };
+    }
 
+    // Fallback to DB
+    const userObjectId = new Types.ObjectId(userId);
     const count = await this.attemptModel.countDocuments({
       userId: userObjectId,
+      isSubmitted: true, // ✅ Only count successfully submitted quizzes
     });
+
+    // Store in cache for 1 hour
+    await redis.set(cacheKey, count, 'EX', 3600);
 
     return {
       success: true,

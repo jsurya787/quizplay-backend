@@ -7,6 +7,7 @@ import {
   Res,
   UnauthorizedException,
   UseGuards,
+  Get,
 } from '@nestjs/common';
 import { AuthService } from './auth.service';
 import { OtpService } from './otp/otp/otp.service';
@@ -15,13 +16,18 @@ import { JwtAuthGuard } from './jwt/jwt/jwt-auth.guard';
 import { SignupDto } from './dto/signup.dto';
 import { VerifyOtpDto } from './dto/verify-otp.dto';
 import { UpdateProfileDto } from './dto/update-profile.dto';
-
+import { QuizService } from '../quiz/quiz.service';
+import { QuizPlayerService } from '../quiz-player/quiz-player.service';
+import { UserService } from '../user/user.service';
 
 @Controller('auth')
 export class AuthController {
   constructor(
     private readonly authService: AuthService,
     private readonly otpService: OtpService,
+    private readonly quizService: QuizService,
+    private readonly quizPlayerService: QuizPlayerService,
+    private readonly userService: UserService,
   ) {}
 
   // ============================
@@ -178,6 +184,35 @@ export class AuthController {
     @Body() dto: UpdateProfileDto,
   ) {
     return this.authService.updateProfile(req.user.sub, dto);
+  }
+
+  @Get('me/dashboard')
+  @UseGuards(JwtAuthGuard)
+  async getDashboardStats(@Req() req: any) {
+    const userId = req.user.sub;
+    const role = req.user.role; // Extract the user's role from the token
+
+    const response: any = { success: true, data: {} };
+
+    // Common for both Students and Teachers 
+    // Fetch total number of created quizzes from DB/cache logic handled in quizService
+    const createdQuizzes = await this.quizService.getCreatedQuizzes(userId);
+    response.data.totalQuizzesCreated = createdQuizzes.data;
+
+    const quizzesList = await this.quizService.getCreatedQuizzesList(userId);
+    response.data.createdQuizzesList = quizzesList.data;
+
+    // Fetch Attempted Count (Common for all roles)
+    const attemptedCount = await this.quizPlayerService.getAttemptedQuizzesCount(userId);
+    response.data.totalQuizzesAttempted = attemptedCount.count;
+
+    // Fetch Role-Specific Data
+    if (role === 'TEACHER') {
+      const instituteData = await this.userService.getTeacherInstitute(userId);
+      response.data.instituteDetails = instituteData.data;
+    }
+
+    return response;
   }
 
   @Post('forgot-password')

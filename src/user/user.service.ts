@@ -371,6 +371,23 @@ export class UserService implements OnModuleInit {
     return teacher?.students || [];
   }
 
+  /**
+   * 👨‍🏫 Get all teachers linked to a student
+   */
+  async getStudentTeachers(studentId: string, search?: string) {
+    const searchFilter = this.buildUserSearchFilter(search);
+    const student = await this.userModel
+      .findById(studentId)
+      .populate({
+        path: 'teachers',
+        select: 'firstName lastName name email',
+        match: searchFilter,
+      })
+      .lean();
+
+    return student?.teachers || [];
+  }
+
   async getTeacherInstitute(teacherId: string) {
     const teacher = await this.userModel.findById(teacherId);
     if (!teacher) {

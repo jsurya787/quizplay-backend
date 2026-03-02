@@ -178,7 +178,7 @@ async findAll(
             ? 'PUBLIC'
             : 'RESTRICTED';
 
-    return await this.quizModel.create({
+    const quiz = await this.quizModel.create({
       title: dto.title,
       description: dto.description, // ✅ NEW
       subjectId: dto.subjectId,
@@ -190,6 +190,15 @@ async findAll(
       visibility,
       createdBy: new Types.ObjectId(userId), // ✅ FIX
     });
+
+    // Increment cached count in Redis
+    const cacheKey = `user:${userId}:createdQuizzes`;
+    const cachedCount = await redis.get(cacheKey);
+    if (cachedCount !== null) {
+      await redis.incr(cacheKey);
+    }
+
+    return quiz;
   }
 
   // 🟡 Update Draft Quiz
@@ -236,6 +245,13 @@ async findAll(
 
     this.assertQuizOwnerOrAdmin(quiz, actorUserId, actorRole);
     await quiz.deleteOne();
+
+    // Decrement cached count in Redis
+    const cacheKey = `user:${quiz.createdBy.toString()}:createdQuizzes`;
+    const cachedCount = await redis.get(cacheKey);
+    if (cachedCount !== null) {
+      await redis.decr(cacheKey);
+    }
 
     return { success: true };
   }
@@ -543,9 +559,20 @@ async findAll(
   }
 
   async getCreatedQuizzes(userId: string) {
-    const createdBy = new Types.ObjectId(userId);
+    const cacheKey = `user:${userId}:createdQuizzes`;
+    
+    // Check Redis Cache First
+    const cachedCount = await redis.get(cacheKey);
+    if (cachedCount !== null) {
+      return { success: true, data: parseInt(cachedCount, 10) };
+    }
 
+    // Fallback to DB
+    const createdBy = new Types.ObjectId(userId);
     const count = await this.quizModel.countDocuments({ createdBy });
+
+    // Store in cache for 1 hour
+    await redis.set(cacheKey, count, 'EX', 3600);
 
     return {
       success: true,

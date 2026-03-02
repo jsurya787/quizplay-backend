@@ -13,10 +13,14 @@ import { Otp, OtpSchema } from './otp/otp/otp.schema';
 import { JwtStrategy } from './jwt/jwt/jwt.strategy';
 import { JwtAuthGuard } from './jwt/jwt/jwt-auth.guard';
 import { MailModule } from 'src/mail/mail.module';
+import { QuizModule } from '../quiz/quiz.module';
+import { QuizPlayerModule } from '../quiz-player/quiz-player.module';
 
 @Module({
   imports: [
     UserModule,
+    QuizModule,
+    QuizPlayerModule,
     ConfigModule,
 
     // ✅ REQUIRED FOR req.user
