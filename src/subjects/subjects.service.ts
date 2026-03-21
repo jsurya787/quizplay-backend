@@ -16,7 +16,7 @@ import { redis } from 'src/redis/redis.provider';
 export class SubjectsService {
   private readonly PRIMARY_SUBJECTS_CACHE_KEY = 'subjects:primary:v1';
   private readonly PRIMARY_SUBJECTS_CACHE_TTL_SECONDS = 86400;
-  private readonly PRIMARY_SUBJECTS_LIMIT = 5;
+  private readonly PRIMARY_SUBJECTS_LIMIT = 10;
 
   constructor(
     @InjectModel(Subject.name)
