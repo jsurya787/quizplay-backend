@@ -16,6 +16,7 @@ import { JwtAuthGuard } from 'src/auth/jwt/jwt/jwt-auth.guard';
 import { QuizAccessGuard } from 'src/auth/jwt/jwt/quiz-access.guard';
 import { GuestSessionService } from 'src/guest-session/guest-session.service';
 import { GuestSessionGuard } from 'src/guest-session/guest-session.guard';
+import { guestSessionCookieOptions } from 'src/common/http/cookies';
 
 @Controller('quiz-player')
 export class QuizPlayerController {
@@ -103,12 +104,11 @@ export class QuizPlayerController {
     await this.guestSessionService.incrementTotalQuizzes(guestSession._id.toString());
 
     // 🍪 Set HTTP-only cookie (secure, 24h expiry)
-    res.cookie('guest_session', guestSession.sessionToken, {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === 'production',
-      sameSite: 'lax',
-      maxAge: 24 * 60 * 60 * 1000, // 24 hours
-    });
+    res.cookie(
+      'guest_session',
+      guestSession.sessionToken,
+      guestSessionCookieOptions(),
+    );
 
     // 🎯 Start quiz attempt with guest session
     return this.service.startAttemptGuest(quizId, guestSession._id.toString());

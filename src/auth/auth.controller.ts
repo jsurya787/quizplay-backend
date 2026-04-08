@@ -19,6 +19,7 @@ import { UpdateProfileDto } from './dto/update-profile.dto';
 import { QuizService } from '../quiz/quiz.service';
 import { QuizPlayerService } from '../quiz-player/quiz-player.service';
 import { UserService } from '../user/user.service';
+import { refreshTokenCookieOptions } from '../common/http/cookies';
 
 @Controller('auth')
 export class AuthController {
@@ -50,13 +51,7 @@ export class AuthController {
     const { accessToken, refreshToken, user } =
       await this.authService.loginWithGoogle(code, clientOrigin as string);
     // 🍪 SET REFRESH TOKEN AS HTTP-ONLY COOKIE
-    res.cookie('refresh_token', refreshToken, {
-      httpOnly: true,
-      secure: false,        // 🔥 MUST be false on localhost
-      sameSite: 'lax',      // 🔥 IMPORTANT for OAuth redirects
-      path: '/auth/refresh',
-      maxAge: 30 * 24 * 60 * 60 * 1000,
-    });
+    res.cookie('refresh_token', refreshToken, refreshTokenCookieOptions());
 
 
     return { accessToken, user };
@@ -74,13 +69,7 @@ export class AuthController {
       await this.authService.loginWithGoogleNative(idToken);
 
     // 🍪 Cookie config for native Capacitor apps (HTTPS API + capacitor:// origin)
-    res.cookie('refresh_token', refreshToken, {
-      httpOnly: true,
-      secure: true,
-      sameSite: 'none',
-      path: '/auth/refresh',
-      maxAge: 30 * 24 * 60 * 60 * 1000,
-    });
+    res.cookie('refresh_token', refreshToken, refreshTokenCookieOptions());
 
     return { accessToken, user };
   }
@@ -128,13 +117,7 @@ export class AuthController {
       await this.authService.verifyOtpAndLogin(dto.email, dto.otp, 'email');
 
     // 🍪 refresh token cookie
-    res.cookie('refresh_token', refreshToken, {
-      httpOnly: true,
-      secure: false, // true in prod HTTPS
-      sameSite: 'lax',
-      path: '/auth/refresh',
-      maxAge: 30 * 24 * 60 * 60 * 1000,
-    });
+    res.cookie('refresh_token', refreshToken, refreshTokenCookieOptions());
 
     return { accessToken, user, success: true, message: 'OTP verified' };
   }
@@ -156,13 +139,7 @@ export class AuthController {
     @Res({ passthrough: true }) res: Response,
   ) {
     const { accessToken, refreshToken, user } = await this.authService.loginWithPassword(email, password);
-    res.cookie('refresh_token', refreshToken, {
-      httpOnly: true,
-      secure: false,          // true in prod HTTPS
-      sameSite: 'lax',
-      path: '/auth/refresh',
-      maxAge: 30 * 24 * 60 * 60 * 1000,
-    });
+    res.cookie('refresh_token', refreshToken, refreshTokenCookieOptions());
 
     return { accessToken, user };
   }
@@ -222,12 +199,7 @@ export class AuthController {
 
   @Post('logout')
   logout(@Res({ passthrough: true }) res: Response) {
-    res.clearCookie('refresh_token', {
-      path: '/auth/refresh',
-      httpOnly: true,
-      sameSite: 'lax',
-      secure: false, // true in prod HTTPS
-    });
+    res.clearCookie('refresh_token', refreshTokenCookieOptions());
 
     return { success: true };
   }
