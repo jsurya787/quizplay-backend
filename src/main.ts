@@ -7,6 +7,8 @@ import * as express from 'express';
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
+  const expressApp = app.getHttpAdapter().getInstance();
+  expressApp.set('trust proxy', 1);
 
   // 🍪 MUST be before routes
   app.use(cookieParser());
@@ -25,7 +27,7 @@ async function bootstrap() {
   // 🔐 CORS (credential-safe)
   app.enableCors({
     origin: (origin, callback) => {
-      const allowedOrigins = [
+      const defaultAllowedOrigins = [
         'http://localhost:4200',
         'http://localhost:8100',
         'http://localhost',
@@ -36,7 +38,21 @@ async function bootstrap() {
         'https://www.quizplay.co.in',
       ];
 
-      if (!origin || allowedOrigins.includes(origin)) {
+      const envOrigins = (process.env.CORS_ORIGINS ?? '')
+        .split(',')
+        .map((v) => v.trim())
+        .filter(Boolean);
+
+      const allowedOrigins = new Set([...defaultAllowedOrigins, ...envOrigins]);
+
+      const allowVercel = (process.env.CORS_ALLOW_VERCEL_APP ?? 'true')
+        .trim()
+        .toLowerCase() !== 'false';
+      const isVercelAppOrigin =
+        typeof origin === 'string' &&
+        /^https:\/\/[a-z0-9-]+\.vercel\.app$/i.test(origin);
+
+      if (!origin || allowedOrigins.has(origin) || (allowVercel && isVercelAppOrigin)) {
         return callback(null, true);
       }
 
