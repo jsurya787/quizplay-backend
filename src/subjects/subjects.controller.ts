@@ -10,12 +10,7 @@ import {
   UseGuards,
   UsePipes,
   ValidationPipe,
-  UseInterceptors,
-  UploadedFile,
 } from '@nestjs/common';
-import { FileInterceptor } from '@nestjs/platform-express';
-import { memoryStorage } from 'multer';
-import { extname } from 'path';
 import { JwtAuthGuard } from '../auth/jwt/jwt/jwt-auth.guard';
 import { RolesGuard } from '../auth/jwt/jwt/roles.guard';
 import { SubjectsService } from './subjects.service';
@@ -36,36 +31,12 @@ import { ListSubjectsDto } from './dto/list-subjects.dto';
 export class SubjectsController {
   constructor(private readonly subjectsService: SubjectsService) {}
 
-  // ➕ CREATE SUBJECT (WITH LOGO)
+  // ➕ CREATE SUBJECT
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(Role.ADMIN)
   @Post()
-  @UseInterceptors(
-    FileInterceptor('logo', {
-      storage: memoryStorage(),
-      fileFilter: (_req, file, cb) => {
-        if (!file.mimetype.startsWith('image/')) {
-          return cb(new Error('Only image files allowed'), false);
-        }
-        cb(null, true);
-      },
-      limits: {
-        fileSize: 1024 * 1024, // 1MB
-      },
-    }),
-  )
-  create(
-    @Body() body: CreateSubjectDto,
-    @UploadedFile() file?: Express.Multer.File,
-  ) {
-    const logoUrl = file
-      ? `https://api.quizplay.co.in/uploads/subjects/${Date.now()}-${Math.round(Math.random() * 1e9)}${extname(file.originalname)}`
-      : undefined;
-
-    return this.subjectsService.create({
-      ...body,
-      logoUrl,
-    });
+  create(@Body() body: CreateSubjectDto) {
+    return this.subjectsService.create(body);
   }
 
   // 📄 Get All Subjects
@@ -80,28 +51,12 @@ export class SubjectsController {
     return this.subjectsService.findPrimarySubjects();
   }
 
-  // ✏️ UPDATE SUBJECT (LOGO OPTIONAL)
+  // ✏️ UPDATE SUBJECT
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(Role.ADMIN)
   @Put(':id')
-  @UseInterceptors(
-    FileInterceptor('logo', {
-      storage: memoryStorage(),
-    }),
-  )
-  update(
-    @Param('id') id: string,
-    @Body() body: UpdateSubjectDto,
-    @UploadedFile() file?: Express.Multer.File,
-  ) {
-    const logoUrl = file
-      ? `https://api.quizplay.co.in/uploads/subjects/${Date.now()}-${Math.round(Math.random() * 1e9)}${extname(file.originalname)}`
-      : undefined;
-
-    return this.subjectsService.update(id, {
-      ...body,
-      ...(logoUrl && { logoUrl }),
-    });
+  update(@Param('id') id: string, @Body() body: UpdateSubjectDto) {
+    return this.subjectsService.update(id, body);
   }
 
   // 🗑️ DELETE SUBJECT

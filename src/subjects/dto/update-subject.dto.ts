@@ -34,6 +34,10 @@ export class UpdateSubjectDto {
   description?: string;
 
   @IsOptional()
+  @IsString()
+  logoUrl?: string;
+
+  @IsOptional()
   @Transform(({ value }) => {
     if (Array.isArray(value)) return value;
     try {

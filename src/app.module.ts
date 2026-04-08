@@ -12,6 +12,7 @@ import { QuizPlayerModule } from './quiz-player/quiz-player.module';
 import { SubjectInfoModule } from './subject-infos/subject-info.module';
 import { NotesModule } from './notes/notes.module';
 import { GuestSessionModule } from './guest-session/guest-session.module';
+import { CloudinaryModule } from './cloudinary/cloudinary.module';
 
 @Module({
   imports: [
@@ -45,6 +46,7 @@ import { GuestSessionModule } from './guest-session/guest-session.module';
     SubjectInfoModule,
     NotesModule,
     GuestSessionModule,
+    CloudinaryModule,
   ],
   controllers: [AppController],
   providers: [AppService],
