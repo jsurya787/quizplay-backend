@@ -1,5 +1,5 @@
 import { NestFactory } from '@nestjs/core';
-import { AppModule } from '../src/app.module';
+import { AppModule } from './app.module';
 import { ExpressAdapter } from '@nestjs/platform-express';
 import express from 'express';
 import { ValidationPipe } from '@nestjs/common';
@@ -15,16 +15,18 @@ async function bootstrapServer() {
       new ExpressAdapter(expressApp),
     );
 
-    // Apply exact same middleware as src/main.ts
     app.use(cookieParser());
 
     app.use((req, res, next) => {
       res.setHeader('X-Frame-Options', 'DENY');
       res.setHeader('X-Content-Type-Options', 'nosniff');
       res.setHeader('X-XSS-Protection', '1; mode=block');
-      res.setHeader('Strict-Transport-Security', 'max-age=31536000; includeSubDomains');
-      res.setHeader('Content-Security-Policy', "default-src 'self'"); 
-      res.setHeader('X-Powered-By', 'QuizPlay Engine'); 
+      res.setHeader(
+        'Strict-Transport-Security',
+        'max-age=31536000; includeSubDomains',
+      );
+      res.setHeader('Content-Security-Policy', "default-src 'self'");
+      res.setHeader('X-Powered-By', 'QuizPlay Engine');
       next();
     });
 
@@ -59,7 +61,7 @@ async function bootstrapServer() {
         transform: true,
       }),
     );
-    
+
     app.use('/uploads', express.static('uploads'));
 
     await app.init();
