@@ -12,7 +12,7 @@ import {
   QuizAttempt,
   QuizAttemptDocument,
 } from './quiz-attempt.schema';
-import { redis } from 'src/redis/redis.provider';
+import { redis } from '../redis/redis.provider';
 
 type QuestionResult = {
   questionId: Types.ObjectId;

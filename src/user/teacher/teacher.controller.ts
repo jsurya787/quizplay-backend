@@ -13,10 +13,10 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { UserService } from '../user.service';
-import { JwtAuthGuard } from 'src/auth/jwt/jwt/jwt-auth.guard';
-import { RolesGuard } from 'src/auth/jwt/jwt/roles.guard';
-import { Roles } from 'src/auth/role/roles.decorator';
-import { Role } from 'src/auth/role/roles.enum';
+import { JwtAuthGuard } from '../../auth/jwt/jwt/jwt-auth.guard';
+import { RolesGuard } from '../../auth/jwt/jwt/roles.guard';
+import { Roles } from '../../auth/role/roles.decorator';
+import { Role } from '../../auth/role/roles.enum';
 import { UpdateTeacherInstituteDto } from './dto/update-teacher-institute.dto';
 
 @Controller('teacher')

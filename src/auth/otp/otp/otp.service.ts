@@ -4,9 +4,9 @@ import { Model } from 'mongoose';
 import axios from 'axios';
 import dayjs from 'dayjs';
 import { Otp, OtpDocument } from './otp.schema';
-import { redis } from 'src/redis/redis.provider';
-import { buildOtpEmailTemplate } from 'src/mail/templates';
-import { EmailSenderService } from 'src/mail/email-sender.service';
+import { redis } from '../../../redis/redis.provider';
+import { buildOtpEmailTemplate } from '../../../mail/templates';
+import { EmailSenderService } from '../../../mail/email-sender.service';
 
 @Injectable()
 export class OtpService {

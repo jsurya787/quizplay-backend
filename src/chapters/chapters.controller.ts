@@ -1,9 +1,9 @@
 import { Controller, Get, Post, Body, Param, UseGuards } from '@nestjs/common';
 import { ChaptersService } from './chapters.service';
-import { JwtAuthGuard } from 'src/auth/jwt/jwt/jwt-auth.guard';
-import { RolesGuard } from 'src/auth/jwt/jwt/roles.guard';
-import { Roles } from 'src/auth/role/roles.decorator';
-import { Role } from 'src/auth/role/roles.enum';
+import { JwtAuthGuard } from '../auth/jwt/jwt/jwt-auth.guard';
+import { RolesGuard } from '../auth/jwt/jwt/roles.guard';
+import { Roles } from '../auth/role/roles.decorator';
+import { Role } from '../auth/role/roles.enum';
 
 @Controller('chapters')
 export class ChaptersController {

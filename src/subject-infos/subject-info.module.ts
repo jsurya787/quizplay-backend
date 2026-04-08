@@ -16,8 +16,8 @@ import {
 } from './chapter.schema';
 import { ChapterService } from './chapter.service';
 import { ChapterController } from './chapter.controller';
-import { Quiz, QuizSchema } from 'src/quiz/quiz.schema';
-import { Subject, SubjectSchema } from 'src/subjects/subject.schema';
+import { Quiz, QuizSchema } from '../quiz/quiz.schema';
+import { Subject, SubjectSchema } from '../subjects/subject.schema';
 
 @Module({
   imports: [

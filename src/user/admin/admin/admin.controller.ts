@@ -11,13 +11,13 @@ import {
   Patch,
   Param,
 } from '@nestjs/common';
-import { UserService } from 'src/user/user.service';
-import { QuizService } from 'src/quiz/quiz.service';
-import { RolesGuard } from 'src/auth/jwt/jwt/roles.guard';
-import { Roles } from 'src/auth/role/roles.decorator';
-import { Role } from 'src/auth/role/roles.enum';
-import { JwtAuthGuard } from 'src/auth/jwt/jwt/jwt-auth.guard';
-import { redis } from 'src/redis/redis.provider';
+import { UserService } from '../../../user/user.service';
+import { QuizService } from '../../../quiz/quiz.service';
+import { RolesGuard } from '../../../auth/jwt/jwt/roles.guard';
+import { Roles } from '../../../auth/role/roles.decorator';
+import { Role } from '../../../auth/role/roles.enum';
+import { JwtAuthGuard } from '../../../auth/jwt/jwt/jwt-auth.guard';
+import { redis } from '../../../redis/redis.provider';
 
 @Controller('admin')
 @UseGuards(JwtAuthGuard, RolesGuard)

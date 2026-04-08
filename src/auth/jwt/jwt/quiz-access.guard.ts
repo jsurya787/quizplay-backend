@@ -6,10 +6,10 @@ import {
 } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model, Types } from 'mongoose';
-import { Quiz, QuizDocument } from 'src/quiz/quiz.schema';
-import { redis } from 'src/redis/redis.provider';
-import { UserService } from 'src/user/user.service';
-import { QuizService } from 'src/quiz/quiz.service';
+import { Quiz, QuizDocument } from '../../../quiz/quiz.schema';
+import { redis } from '../../../redis/redis.provider';
+import { UserService } from '../../../user/user.service';
+import { QuizService } from '../../../quiz/quiz.service';
 
 @Injectable()
 export class QuizAccessGuard implements CanActivate {

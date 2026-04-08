@@ -5,7 +5,7 @@ import { SubjectInfo } from './subject-info.schema';
 import { Quiz } from '../quiz/quiz.schema';
 import { CreateSubjectInfoDto } from './dto/create-subject-info.dto';
 import { Chapter } from './chapter.schema'; // ✅ import chapter schema
-import { Subject } from 'src/subjects/subject.schema';
+import { Subject } from '../subjects/subject.schema';
 
 @Injectable()
 export class SubjectInfoService {

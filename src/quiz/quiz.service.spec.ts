@@ -2,7 +2,7 @@
 import { BadRequestException, ForbiddenException, NotFoundException } from '@nestjs/common';
 import { Types } from 'mongoose';
 import { QuizService } from './quiz.service';
-import { Role } from 'src/auth/role/roles.enum';
+import { Role } from '../auth/role/roles.enum';
 
 describe('QuizService (notification helpers)', () => {
   let service: QuizService;

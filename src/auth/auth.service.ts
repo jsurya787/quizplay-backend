@@ -7,7 +7,7 @@ import {
 } from '@nestjs/common';
 import { OAuth2Client } from 'google-auth-library';
 import { JwtService } from '@nestjs/jwt';
-import { UserService } from 'src/user/user.service';
+import { UserService } from '../user/user.service';
 import axios from 'axios';
 import * as qs from 'qs';
 import * as bcrypt from 'bcrypt';
@@ -15,8 +15,8 @@ import { BadRequestException } from '@nestjs/common';
 import { OtpService } from './otp/otp/otp.service';
 import { SignupDto } from './dto/signup.dto';
 import { UpdateProfileDto } from './dto/update-profile.dto';
-import { EmailSenderService } from 'src/mail/email-sender.service';
-import { buildWelcomeEmailTemplate } from 'src/mail/templates';
+import { EmailSenderService } from '../mail/email-sender.service';
+import { buildWelcomeEmailTemplate } from '../mail/templates';
 
 const SALT_ROUNDS = 10;
 

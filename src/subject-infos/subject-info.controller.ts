@@ -1,10 +1,10 @@
 import { Controller, Post, Get, Body, Param, UseGuards } from '@nestjs/common';
 import { SubjectInfoService } from './subject-info.service';
 import { CreateSubjectInfoDto } from './dto/create-subject-info.dto';
-import { JwtAuthGuard } from 'src/auth/jwt/jwt/jwt-auth.guard';
-import { RolesGuard } from 'src/auth/jwt/jwt/roles.guard';
-import { Role } from 'src/auth/role/roles.enum';
-import { Roles } from 'src/auth/role/roles.decorator';
+import { JwtAuthGuard } from '../auth/jwt/jwt/jwt-auth.guard';
+import { RolesGuard } from '../auth/jwt/jwt/roles.guard';
+import { Role } from '../auth/role/roles.enum';
+import { Roles } from '../auth/role/roles.decorator';
 
 @Controller('subject-info')
 export class SubjectInfoController {

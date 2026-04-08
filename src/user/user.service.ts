@@ -7,20 +7,20 @@ import {
 import { InjectModel } from '@nestjs/mongoose';
 import { Model, Types } from 'mongoose';
 import { User, UserDocument, UserRole, UserSex } from './schemas/user.schema';
-import { SignupDto } from 'src/auth/dto/signup.dto';
+import { SignupDto } from '../auth/dto/signup.dto';
 import * as bcrypt from 'bcrypt';
-import { redis } from 'src/redis/redis.provider';
+import { redis } from '../redis/redis.provider';
 import {
   buildAdminRoleUpdateTemplate,
   buildQuizPublishedForStudentTemplate,
   buildStudentAddedByTeacherTemplate,
   buildTeacherPromotionTemplate,
   EmailTemplate,
-} from 'src/mail/templates';
-import { UpdateProfileDto } from 'src/auth/dto/update-profile.dto';
+} from '../mail/templates';
+import { UpdateProfileDto } from '../auth/dto/update-profile.dto';
 import { Institute, InstituteDocument } from './schemas/institute.schema';
 import { UpdateTeacherInstituteDto } from './teacher/dto/update-teacher-institute.dto';
-import { EmailSenderService } from 'src/mail/email-sender.service';
+import { EmailSenderService } from '../mail/email-sender.service';
 
 const SALT_ROUNDS = 10;
 

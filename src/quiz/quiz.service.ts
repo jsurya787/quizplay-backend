@@ -9,9 +9,9 @@ import { Model, Types } from 'mongoose';
 import { Quiz, QuizDocument } from './quiz.schema';
 import { CreateQuizDto } from './create-quiz.dto';
 import { AddQuestionDto } from './add-question.dto';
-import { UserService } from 'src/user/user.service';
-import { redis } from 'src/redis/redis.provider';
-import { Role } from 'src/auth/role/roles.enum';
+import { UserService } from '../user/user.service';
+import { redis } from '../redis/redis.provider';
+import { Role } from '../auth/role/roles.enum';
 
 @Injectable()
 export class QuizService {

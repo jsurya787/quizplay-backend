@@ -5,9 +5,9 @@ import { MongooseModule } from '@nestjs/mongoose';
 import { User, UserSchema } from './schemas/user.schema';
 import { UserService } from './user.service';
 import { TeacherController } from './teacher/teacher.controller';
-import { QuizModule } from 'src/quiz/quiz.module';
+import { QuizModule } from '../quiz/quiz.module';
 import { Institute, InstituteSchema } from './schemas/institute.schema';
-import { MailModule } from 'src/mail/mail.module';
+import { MailModule } from '../mail/mail.module';
 
 
 

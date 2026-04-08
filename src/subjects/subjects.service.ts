@@ -10,7 +10,7 @@ import { Subject, SubjectDocument } from './subject.schema';
 import { CreateSubjectDto } from './dto/create-subject.dto';
 import { UpdateSubjectDto } from './dto/update-subject.dto';
 import { ListSubjectsDto } from './dto/list-subjects.dto';
-import { redis } from 'src/redis/redis.provider';
+import { redis } from '../redis/redis.provider';
 
 @Injectable()
 export class SubjectsService { 

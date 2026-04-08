@@ -12,11 +12,11 @@ import {
 } from '@nestjs/common';
 import type { Response } from 'express';
 import { QuizPlayerService } from './quiz-player.service';
-import { JwtAuthGuard } from 'src/auth/jwt/jwt/jwt-auth.guard';
-import { QuizAccessGuard } from 'src/auth/jwt/jwt/quiz-access.guard';
-import { GuestSessionService } from 'src/guest-session/guest-session.service';
-import { GuestSessionGuard } from 'src/guest-session/guest-session.guard';
-import { guestSessionCookieOptions } from 'src/common/http/cookies';
+import { JwtAuthGuard } from '../auth/jwt/jwt/jwt-auth.guard';
+import { QuizAccessGuard } from '../auth/jwt/jwt/quiz-access.guard';
+import { GuestSessionService } from '../guest-session/guest-session.service';
+import { GuestSessionGuard } from '../guest-session/guest-session.guard';
+import { guestSessionCookieOptions } from '../common/http/cookies';
 
 @Controller('quiz-player')
 export class QuizPlayerController {

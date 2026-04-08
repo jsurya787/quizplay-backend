@@ -14,12 +14,12 @@ import { QuizService } from './quiz.service';
 import { CreateQuizDto } from './create-quiz.dto';
 import { AddQuestionDto } from './add-question.dto';
 import { NotifyStudentsDto } from './notify-students.dto';
-import { JwtAuthGuard } from 'src/auth/jwt/jwt/jwt-auth.guard';
-import { QuizAccessGuard } from 'src/auth/jwt/jwt/quiz-access.guard';
-import { RolesGuard } from 'src/auth/jwt/jwt/roles.guard';
-import { Roles } from 'src/auth/role/roles.decorator';
-import { Role } from 'src/auth/role/roles.enum';
-import { OptionalJwtAuthGuard } from 'src/auth/jwt/jwt/optional-jwt-auth.guard';
+import { JwtAuthGuard } from '../auth/jwt/jwt/jwt-auth.guard';
+import { QuizAccessGuard } from '../auth/jwt/jwt/quiz-access.guard';
+import { RolesGuard } from '../auth/jwt/jwt/roles.guard';
+import { Roles } from '../auth/role/roles.decorator';
+import { Role } from '../auth/role/roles.enum';
+import { OptionalJwtAuthGuard } from '../auth/jwt/jwt/optional-jwt-auth.guard';
 
 //@UseGuards(JwtAuthGuard, RolesGuard)
 @Controller('quizzes')

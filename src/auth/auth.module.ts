@@ -7,12 +7,12 @@ import { AuthController } from './auth.controller';
 import { AuthService } from './auth.service';
 import { GoogleOauthService } from './google-oauth/google-oauth/google-oauth.service';
 import { OtpService } from './otp/otp/otp.service';
-import { UserModule } from 'src/user/user.module';
+import { UserModule } from '../user/user.module';
 import { MongooseModule } from '@nestjs/mongoose';
 import { Otp, OtpSchema } from './otp/otp/otp.schema';
 import { JwtStrategy } from './jwt/jwt/jwt.strategy';
 import { JwtAuthGuard } from './jwt/jwt/jwt-auth.guard';
-import { MailModule } from 'src/mail/mail.module';
+import { MailModule } from '../mail/mail.module';
 import { QuizModule } from '../quiz/quiz.module';
 import { QuizPlayerModule } from '../quiz-player/quiz-player.module';
 
