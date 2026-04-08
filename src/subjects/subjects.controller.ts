@@ -14,7 +14,7 @@ import {
   UploadedFile,
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
-import { diskStorage } from 'multer';
+import { memoryStorage } from 'multer';
 import { extname } from 'path';
 import { JwtAuthGuard } from '../auth/jwt/jwt/jwt-auth.guard';
 import { RolesGuard } from '../auth/jwt/jwt/roles.guard';
@@ -42,14 +42,7 @@ export class SubjectsController {
   @Post()
   @UseInterceptors(
     FileInterceptor('logo', {
-      storage: diskStorage({
-        destination: './uploads/subjects',
-        filename: (_req, file, cb) => {
-          const unique =
-            Date.now() + '-' + Math.round(Math.random() * 1e9);
-          cb(null, unique + extname(file.originalname));
-        },
-      }),
+      storage: memoryStorage(),
       fileFilter: (_req, file, cb) => {
         if (!file.mimetype.startsWith('image/')) {
           return cb(new Error('Only image files allowed'), false);
@@ -65,9 +58,9 @@ export class SubjectsController {
     @Body() body: CreateSubjectDto,
     @UploadedFile() file?: Express.Multer.File,
   ) {
-    const logoUrl: any = file
-      ? `https://api.quizplay.co.in/uploads/subjects/${file.filename}`
-      : null;
+    const logoUrl = file
+      ? `https://api.quizplay.co.in/uploads/subjects/${Date.now()}-${Math.round(Math.random() * 1e9)}${extname(file.originalname)}`
+      : undefined;
 
     return this.subjectsService.create({
       ...body,
@@ -93,14 +86,7 @@ export class SubjectsController {
   @Put(':id')
   @UseInterceptors(
     FileInterceptor('logo', {
-      storage: diskStorage({
-        destination: './uploads/subjects',
-        filename: (_req, file, cb) => {
-          const unique =
-            Date.now() + '-' + Math.round(Math.random() * 1e9);
-          cb(null, unique + extname(file.originalname));
-        },
-      }),
+      storage: memoryStorage(),
     }),
   )
   update(
@@ -109,7 +95,7 @@ export class SubjectsController {
     @UploadedFile() file?: Express.Multer.File,
   ) {
     const logoUrl = file
-      ? `https://api.quizplay.co.in/uploads/subjects/${file.filename}`
+      ? `https://api.quizplay.co.in/uploads/subjects/${Date.now()}-${Math.round(Math.random() * 1e9)}${extname(file.originalname)}`
       : undefined;
 
     return this.subjectsService.update(id, {
