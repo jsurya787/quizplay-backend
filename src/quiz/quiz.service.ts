@@ -559,12 +559,22 @@ async findAll(
   }
 
   async getCreatedQuizzes(userId: string) {
+    if (!Types.ObjectId.isValid(userId)) {
+      throw new BadRequestException('Invalid user id');
+    }
+
     const cacheKey = `user:${userId}:createdQuizzes`;
     
     // Check Redis Cache First
-    const cachedCount = await redis.get(cacheKey);
-    if (cachedCount !== null) {
-      return { success: true, data: parseInt(cachedCount, 10) };
+    try {
+      const cachedCount = await redis.get(cacheKey);
+      if (cachedCount !== null) {
+        return { success: true, data: parseInt(cachedCount, 10) };
+      }
+    } catch (err: unknown) {
+      // Treat Redis as a cache; fall back to DB if unavailable.
+      const message = err instanceof Error ? err.message : String(err);
+      console.warn('[redis] getCreatedQuizzes cache read failed', message);
     }
 
     // Fallback to DB
@@ -572,7 +582,12 @@ async findAll(
     const count = await this.quizModel.countDocuments({ createdBy });
 
     // Store in cache for 1 hour
-    await redis.set(cacheKey, count, 'EX', 3600);
+    try {
+      await redis.set(cacheKey, count, 'EX', 3600);
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : String(err);
+      console.warn('[redis] getCreatedQuizzes cache write failed', message);
+    }
 
     return {
       success: true,
@@ -581,6 +596,10 @@ async findAll(
   }
 
   async getCreatedQuizzesList(userId: string) {
+    if (!Types.ObjectId.isValid(userId)) {
+      throw new BadRequestException('Invalid user id');
+    }
+
     const createdBy = new Types.ObjectId(userId);
 
     const quizzes = await this.quizModel

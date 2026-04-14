@@ -303,7 +303,12 @@ export class QuizPlayerService {
     // Increment Redis Counter for authenticated users
     if (!guestSessionId && attempt.userId) {
       const cacheKey = `user:${attempt.userId.toString()}:attemptedQuizzes`;
-      await redis.del(cacheKey); // 🧹 Invalidate cache to force re-count on next load
+      try {
+        await redis.del(cacheKey); // 🧹 Invalidate cache to force re-count on next load
+      } catch (err: unknown) {
+        const message = err instanceof Error ? err.message : String(err);
+        console.warn('[redis] attemptedQuizzes cache invalidation failed', message);
+      }
     }
 
     return {
@@ -326,9 +331,15 @@ export class QuizPlayerService {
     const cacheKey = `user:${userId}:attemptedQuizzes`;
     
     // Check Redis Cache First
-    const cachedCount = await redis.get(cacheKey);
-    if (cachedCount !== null) {
-      return { success: true, count: parseInt(cachedCount, 10) };
+    try {
+      const cachedCount = await redis.get(cacheKey);
+      if (cachedCount !== null) {
+        return { success: true, count: parseInt(cachedCount, 10) };
+      }
+    } catch (err: unknown) {
+      // Treat Redis as a cache; fall back to DB if unavailable.
+      const message = err instanceof Error ? err.message : String(err);
+      console.warn('[redis] attemptedQuizzes cache read failed', message);
     }
 
     // Fallback to DB
@@ -339,7 +350,12 @@ export class QuizPlayerService {
     });
 
     // Store in cache for 1 hour
-    await redis.set(cacheKey, count, 'EX', 3600);
+    try {
+      await redis.set(cacheKey, count, 'EX', 3600);
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : String(err);
+      console.warn('[redis] attemptedQuizzes cache write failed', message);
+    }
 
     return {
       success: true,

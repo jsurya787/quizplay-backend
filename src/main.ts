@@ -4,6 +4,14 @@ import { ValidationPipe } from '@nestjs/common';
 import cookieParser from 'cookie-parser';
 import * as express from 'express';
 
+function parseCorsOrigins(raw?: string): string[] {
+  if (!raw) return [];
+  return raw
+    .split(',')
+    .map((s) => s.trim())
+    .filter(Boolean)
+    .map((s) => s.replace(/\/+$/, '')); // strip trailing slash
+}
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
@@ -23,28 +31,62 @@ async function bootstrap() {
   });
 
   // 🔐 CORS (credential-safe)
+  const allowedOrigins = new Set<string>([
+    // local dev
+    'http://localhost:4200',
+    'http://localhost:8100',
+    'http://127.0.0.1:4200',
+    'http://127.0.0.1:8100',
+    'capacitor://localhost',
+    'ionic://localhost',
+
+    // production
+    'https://quizplay.co.in',
+    'https://www.quizplay.co.in',
+
+    // optional extra origins (comma-separated)
+    ...parseCorsOrigins(process.env.CORS_ORIGINS),
+  ]);
+
   app.enableCors({
     origin: (origin, callback) => {
-      const allowedOrigins = [
-        'http://localhost:4200',
-        'http://localhost:8100',
-        'http://localhost',
-        'https://localhost',
-        'capacitor://localhost',
-        'ionic://localhost',
-        'https://quizplay.co.in',
-        'https://www.quizplay.co.in',
-      ];
-
-      if (!origin || allowedOrigins.includes(origin)) {
+      // Non-browser clients (curl, server-to-server) may not send Origin.
+      if (!origin) {
         return callback(null, true);
       }
 
-      return callback(new Error(`Not allowed by CORS: ${origin}`), false);
+      const normalizedOrigin = origin.replace(/\/+$/, '');
+      if (allowedOrigins.has(normalizedOrigin)) {
+        return callback(null, true);
+      }
+
+      // Allow any subdomain of quizplay.co.in (e.g., https://app.quizplay.co.in)
+      try {
+        const url = new URL(normalizedOrigin);
+        if (
+          url.hostname === 'quizplay.co.in' ||
+          url.hostname.endsWith('.quizplay.co.in')
+        ) {
+          return callback(null, true);
+        }
+      } catch {
+        // ignore invalid origins
+      }
+
+      // Don't throw an error (it becomes a 500 and looks like "CORS failed" in the browser).
+      return callback(null, false);
     },
     credentials: true,
     methods: ['GET', 'POST', 'PATCH', 'PUT', 'DELETE', 'OPTIONS'],
-    allowedHeaders: ['Content-Type', 'Authorization', 'X-Client-Origin'],
+    allowedHeaders: [
+      'Content-Type',
+      'Authorization',
+      'X-Client-Origin',
+      'X-Requested-With',
+      'Accept',
+      'Origin',
+    ],
+    optionsSuccessStatus: 204,
   });
 
 
