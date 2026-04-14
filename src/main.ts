@@ -60,6 +60,18 @@ async function bootstrap() {
         return callback(null, true);
       }
 
+      // Dev convenience: allow any localhost / 127.0.0.1 port in non-production.
+      if (process.env.NODE_ENV !== 'production') {
+        try {
+          const url = new URL(normalizedOrigin);
+          if (url.hostname === 'localhost' || url.hostname === '127.0.0.1') {
+            return callback(null, true);
+          }
+        } catch {
+          // ignore invalid origins
+        }
+      }
+
       // Allow any subdomain of quizplay.co.in (e.g., https://app.quizplay.co.in)
       try {
         const url = new URL(normalizedOrigin);
@@ -78,14 +90,7 @@ async function bootstrap() {
     },
     credentials: true,
     methods: ['GET', 'POST', 'PATCH', 'PUT', 'DELETE', 'OPTIONS'],
-    allowedHeaders: [
-      'Content-Type',
-      'Authorization',
-      'X-Client-Origin',
-      'X-Requested-With',
-      'Accept',
-      'Origin',
-    ],
+    // Don't hardcode allowed headers; let the CORS middleware reflect requested headers.
     optionsSuccessStatus: 204,
   });
 
