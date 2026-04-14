@@ -193,9 +193,14 @@ async findAll(
 
     // Increment cached count in Redis
     const cacheKey = `user:${userId}:createdQuizzes`;
-    const cachedCount = await redis.get(cacheKey);
-    if (cachedCount !== null) {
-      await redis.incr(cacheKey);
+    try {
+      const cachedCount = await redis.get(cacheKey);
+      if (cachedCount !== null) {
+        await redis.incr(cacheKey);
+      }
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : String(err);
+      console.warn('[redis] createdQuizzes cache increment failed', message);
     }
 
     return quiz;
@@ -248,9 +253,14 @@ async findAll(
 
     // Decrement cached count in Redis
     const cacheKey = `user:${quiz.createdBy.toString()}:createdQuizzes`;
-    const cachedCount = await redis.get(cacheKey);
-    if (cachedCount !== null) {
-      await redis.decr(cacheKey);
+    try {
+      const cachedCount = await redis.get(cacheKey);
+      if (cachedCount !== null) {
+        await redis.decr(cacheKey);
+      }
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : String(err);
+      console.warn('[redis] createdQuizzes cache decrement failed', message);
     }
 
     return { success: true };
