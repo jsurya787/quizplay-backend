@@ -14,8 +14,7 @@ import {
   UploadedFile,
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
-import { diskStorage } from 'multer';
-import { extname } from 'path';
+import { memoryStorage } from 'multer';
 import { JwtAuthGuard } from 'src/auth/jwt/jwt/jwt-auth.guard';
 import { RolesGuard } from 'src/auth/jwt/jwt/roles.guard';
 import { SubjectsService } from './subjects.service';
@@ -24,6 +23,13 @@ import { Roles } from 'src/auth/role/roles.decorator';
 import { CreateSubjectDto } from './dto/create-subject.dto';
 import { UpdateSubjectDto } from './dto/update-subject.dto';
 import { ListSubjectsDto } from './dto/list-subjects.dto';
+import { CloudinaryService } from 'src/cloudinary/cloudinary.service';
+
+type UploadedMulterFile = {
+  buffer: Buffer;
+  mimetype: string;
+  originalname: string;
+};
 
 @Controller('subjects')
 @UsePipes(
@@ -34,7 +40,10 @@ import { ListSubjectsDto } from './dto/list-subjects.dto';
   }),
 )
 export class SubjectsController {
-  constructor(private readonly subjectsService: SubjectsService) {}
+  constructor(
+    private readonly subjectsService: SubjectsService,
+    private readonly cloudinaryService: CloudinaryService,
+  ) {}
 
   // ➕ CREATE SUBJECT (WITH LOGO)
   @UseGuards(JwtAuthGuard, RolesGuard)
@@ -42,14 +51,7 @@ export class SubjectsController {
   @Post()
   @UseInterceptors(
     FileInterceptor('logo', {
-      storage: diskStorage({
-        destination: './uploads/subjects',
-        filename: (_req, file, cb) => {
-          const unique =
-            Date.now() + '-' + Math.round(Math.random() * 1e9);
-          cb(null, unique + extname(file.originalname));
-        },
-      }),
+      storage: memoryStorage(),
       fileFilter: (_req, file, cb) => {
         if (!file.mimetype.startsWith('image/')) {
           return cb(new Error('Only image files allowed'), false);
@@ -61,17 +63,24 @@ export class SubjectsController {
       },
     }),
   )
-  create(
+  async create(
     @Body() body: CreateSubjectDto,
-    @UploadedFile() file?: Express.Multer.File,
+    @UploadedFile() file?: UploadedMulterFile,
   ) {
-    const logoUrl: any = file
-      ? `https://api.quizplay.co.in/uploads/subjects/${file.filename}`
-      : null;
+    const logoUrl = file
+      ? (
+          await this.cloudinaryService.uploadImageFromBuffer({
+            buffer: file.buffer,
+            folder: 'subjects',
+            originalname: file.originalname,
+            mimetype: file.mimetype,
+          })
+        ).secureUrl
+      : undefined;
 
     return this.subjectsService.create({
       ...body,
-      logoUrl,
+      ...(logoUrl ? { logoUrl } : {}),
     });
   }
 
@@ -93,23 +102,32 @@ export class SubjectsController {
   @Put(':id')
   @UseInterceptors(
     FileInterceptor('logo', {
-      storage: diskStorage({
-        destination: './uploads/subjects',
-        filename: (_req, file, cb) => {
-          const unique =
-            Date.now() + '-' + Math.round(Math.random() * 1e9);
-          cb(null, unique + extname(file.originalname));
-        },
-      }),
+      storage: memoryStorage(),
+      fileFilter: (_req, file, cb) => {
+        if (!file.mimetype.startsWith('image/')) {
+          return cb(new Error('Only image files allowed'), false);
+        }
+        cb(null, true);
+      },
+      limits: {
+        fileSize: 1024 * 1024, // 1MB
+      },
     }),
   )
-  update(
+  async update(
     @Param('id') id: string,
     @Body() body: UpdateSubjectDto,
-    @UploadedFile() file?: Express.Multer.File,
+    @UploadedFile() file?: UploadedMulterFile,
   ) {
     const logoUrl = file
-      ? `https://api.quizplay.co.in/uploads/subjects/${file.filename}`
+      ? (
+          await this.cloudinaryService.uploadImageFromBuffer({
+            buffer: file.buffer,
+            folder: 'subjects',
+            originalname: file.originalname,
+            mimetype: file.mimetype,
+          })
+        ).secureUrl
       : undefined;
 
     return this.subjectsService.update(id, {
