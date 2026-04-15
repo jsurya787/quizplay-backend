@@ -16,6 +16,7 @@ import { JwtAuthGuard } from 'src/auth/jwt/jwt/jwt-auth.guard';
 import { QuizAccessGuard } from 'src/auth/jwt/jwt/quiz-access.guard';
 import { GuestSessionService } from 'src/guest-session/guest-session.service';
 import { GuestSessionGuard } from 'src/guest-session/guest-session.guard';
+import { OptionalJwtAuthGuard } from 'src/auth/jwt/jwt/optional-jwt-auth.guard';
 
 @Controller('quiz-player')
 export class QuizPlayerController {
@@ -52,10 +53,12 @@ export class QuizPlayerController {
   }
 
   // 🎯 Get quiz for playing (NO answers - authenticated)
-  @UseGuards(JwtAuthGuard, QuizAccessGuard)
+  @UseGuards(OptionalJwtAuthGuard, QuizAccessGuard)
   @Get(':quizId')
-  async getQuiz(@Param('quizId') quizId: string) {
-    return this.service.getPlayableQuiz(quizId);
+  async getQuiz(@Param('quizId') quizId: string, @Req() req: any) {
+    const isAuthenticated = Boolean(req?.user?.sub);
+    // Defense-in-depth: if unauthenticated, only allow PUBLIC quizzes at the DB layer too.
+    return this.service.getPlayableQuiz(quizId, !isAuthenticated);
   }
 
   // 🎯 Get quiz for playing (NO answers - guest)
