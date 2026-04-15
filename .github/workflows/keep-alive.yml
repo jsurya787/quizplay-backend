@@ -10,7 +10,12 @@ jobs:
   keep-alive:
     runs-on: ubuntu-latest
     steps:
-      - name: Ping health endpoint
+      - name: Ping backend and frontend to keep both alive
         run: |
-          curl -f https://api.quizplay.co.in/health || exit 1
+          for URL in \
+            https://api.quizplay.co.in/health \
+            https://www.quizplay.co.in/; do
+            echo "Pinging $URL"
+            curl -fsSL --retry 3 --retry-delay 5 "$URL"
+          done
         timeout-minutes: 1
