@@ -2,25 +2,35 @@ name: Keep Render App Alive
 
 on:
   schedule:
-    # Runs every 10 minutes
+    # Runs every 10 minutes - uses curl (no Node setup needed, faster & more reliable)
     - cron: '*/10 * * * *'
-  workflow_dispatch: # Allow manual trigger
+  workflow_dispatch: # Allow manual trigger from GitHub UI
 
 jobs:
   keep-alive:
     runs-on: ubuntu-latest
+    timeout-minutes: 3
+
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v3
-      
-      - name: Setup Node.js
-        uses: actions/setup-node@v3
-        with:
-          node-version: '18'
-      
-      - name: Install dependencies
-        run: npm install axios
-      
-      - name: Ping backend and frontend to keep both alive
-        run: node scripts/keep-alive.js
-        timeout-minutes: 5
+      - name: Ping Quiz API health endpoint
+        run: |
+          echo "Pinging at $(date -u)"
+          STATUS=$(curl -s -o /dev/null -w "%{http_code}" \
+            --max-time 30 \
+            --retry 3 \
+            --retry-delay 5 \
+            -H "User-Agent: GitHub-Actions-KeepAlive/1.0" \
+            "https://api.quizplay.co.in/health")
+
+          echo "HTTP Status: $STATUS"
+
+          if [ "$STATUS" -ge 200 ] && [ "$STATUS" -lt 400 ]; then
+            echo "✅ Server is alive (HTTP $STATUS)"
+          else
+            echo "⚠️ Unexpected status: $STATUS"
+            exit 1
+          fi
+
+      - name: Log result
+        if: always()
+        run: echo "Keep-alive job completed at $(date -u)"
