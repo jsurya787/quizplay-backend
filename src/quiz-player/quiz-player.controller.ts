@@ -106,10 +106,11 @@ export class QuizPlayerController {
     await this.guestSessionService.incrementTotalQuizzes(guestSession._id.toString());
 
     // 🍪 Set HTTP-only cookie (secure, 24h expiry)
+    const isProduction = process.env.NODE_ENV === 'production';
     res.cookie('guest_session', guestSession.sessionToken, {
       httpOnly: true,
-      secure: process.env.NODE_ENV === 'production',
-      sameSite: 'lax',
+      secure: isProduction,
+      sameSite: isProduction ? 'none' : 'lax',
       maxAge: 24 * 60 * 60 * 1000, // 24 hours
     });
 

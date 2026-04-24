@@ -11,7 +11,7 @@ import {
 } from '@nestjs/common';
 import { AuthService } from './auth.service';
 import { OtpService } from './otp/otp/otp.service';
-import type { Request, Response } from 'express';
+import type { CookieOptions, Request, Response } from 'express';
 import { JwtAuthGuard } from './jwt/jwt/jwt-auth.guard';
 import { SignupDto } from './dto/signup.dto';
 import { VerifyOtpDto } from './dto/verify-otp.dto';
@@ -29,6 +29,18 @@ export class AuthController {
     private readonly quizPlayerService: QuizPlayerService,
     private readonly userService: UserService,
   ) {}
+
+  private getRefreshCookieOptions(): CookieOptions {
+    const isProduction = process.env.NODE_ENV === 'production';
+
+    return {
+      httpOnly: true,
+      secure: isProduction,
+      sameSite: isProduction ? 'none' : 'lax',
+      path: '/auth/refresh',
+      maxAge: 30 * 24 * 60 * 60 * 1000,
+    };
+  }
 
   // ============================
   // GOOGLE LOGIN (OAuth Code)
@@ -50,16 +62,10 @@ export class AuthController {
     const { accessToken, refreshToken, user } =
       await this.authService.loginWithGoogle(code, clientOrigin as string);
     // 🍪 SET REFRESH TOKEN AS HTTP-ONLY COOKIE
-    res.cookie('refresh_token', refreshToken, {
-      httpOnly: true,
-      secure: false,        // 🔥 MUST be false on localhost
-      sameSite: 'lax',      // 🔥 IMPORTANT for OAuth redirects
-      path: '/auth/refresh',
-      maxAge: 30 * 24 * 60 * 60 * 1000,
-    });
+    res.cookie('refresh_token', refreshToken, this.getRefreshCookieOptions());
 
 
-    return { accessToken, user };
+    return { accessToken, refreshToken, user };
   }
 
   // ============================
@@ -74,15 +80,9 @@ export class AuthController {
       await this.authService.loginWithGoogleNative(idToken);
 
     // 🍪 Cookie config for native Capacitor apps (HTTPS API + capacitor:// origin)
-    res.cookie('refresh_token', refreshToken, {
-      httpOnly: true,
-      secure: true,
-      sameSite: 'none',
-      path: '/auth/refresh',
-      maxAge: 30 * 24 * 60 * 60 * 1000,
-    });
+    res.cookie('refresh_token', refreshToken, this.getRefreshCookieOptions());
 
-    return { accessToken, user };
+    return { accessToken, refreshToken, user };
   }
 
   // ============================
@@ -128,15 +128,9 @@ export class AuthController {
       await this.authService.verifyOtpAndLogin(dto.email, dto.otp, 'email');
 
     // 🍪 refresh token cookie
-    res.cookie('refresh_token', refreshToken, {
-      httpOnly: true,
-      secure: false, // true in prod HTTPS
-      sameSite: 'lax',
-      path: '/auth/refresh',
-      maxAge: 30 * 24 * 60 * 60 * 1000,
-    });
+    res.cookie('refresh_token', refreshToken, this.getRefreshCookieOptions());
 
-    return { accessToken, user, success: true, message: 'OTP verified' };
+    return { accessToken, refreshToken, user, success: true, message: 'OTP verified' };
   }
 
   @Post('otp/resend')
@@ -156,15 +150,9 @@ export class AuthController {
     @Res({ passthrough: true }) res: Response,
   ) {
     const { accessToken, refreshToken, user } = await this.authService.loginWithPassword(email, password);
-    res.cookie('refresh_token', refreshToken, {
-      httpOnly: true,
-      secure: false,          // true in prod HTTPS
-      sameSite: 'lax',
-      path: '/auth/refresh',
-      maxAge: 30 * 24 * 60 * 60 * 1000,
-    });
+    res.cookie('refresh_token', refreshToken, this.getRefreshCookieOptions());
 
-    return { accessToken, user };
+    return { accessToken, refreshToken, user };
   }
 
   @Post('set-password')
@@ -225,8 +213,8 @@ export class AuthController {
     res.clearCookie('refresh_token', {
       path: '/auth/refresh',
       httpOnly: true,
-      sameSite: 'lax',
-      secure: false, // true in prod HTTPS
+      sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax',
+      secure: process.env.NODE_ENV === 'production',
     });
 
     return { success: true };
