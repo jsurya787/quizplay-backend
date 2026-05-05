@@ -594,24 +594,38 @@ export class UserService implements OnModuleInit {
     actorAdminId?: string,
     actorAdminEmail?: string,
   ) {
-    // Basic validation
-    if (role !== 'STUDENT' && role !== 'TEACHER') {
-       throw new Error('Invalid role. Only STUDENT or TEACHER allowed via this API.');
+    if (!Types.ObjectId.isValid(userId)) {
+      throw new BadRequestException('Invalid user id');
+    }
+
+    const normalizedRole = role?.trim().toUpperCase();
+
+    if (
+      normalizedRole !== UserRole.STUDENT &&
+      normalizedRole !== UserRole.TEACHER
+    ) {
+      throw new BadRequestException(
+        'Invalid role. Only STUDENT or TEACHER allowed via this API.',
+      );
     }
 
     const existingUser = await this.userModel.findById(userId);
     if (!existingUser) {
-      throw new Error('User not found');
+      throw new NotFoundException('User not found');
     }
 
     const previousRole = existingUser.role;
-    existingUser.role = role as UserRole;
+    existingUser.role = normalizedRole;
     const user = await existingUser.save();
 
     const { appName, appLogoUrl, webUrl } = this.emailSender.getBranding();
     let roleEmailNotice = '';
 
-    if (previousRole !== 'TEACHER' && role === 'TEACHER' && user.email) {
+    if (
+      previousRole !== UserRole.TEACHER &&
+      normalizedRole === UserRole.TEACHER &&
+      user.email
+    ) {
       const adminUser = actorAdminId
         ? await this.userModel.findById(actorAdminId).select('firstName lastName name email').lean()
         : null;
@@ -640,7 +654,7 @@ export class UserService implements OnModuleInit {
           adminEmail,
           adminName: adminDisplayName,
           targetName,
-          updatedRole: role,
+          updatedRole: normalizedRole,
           appName,
           appLogoUrl,
           webUrl,
@@ -660,7 +674,7 @@ export class UserService implements OnModuleInit {
 
     return {
       success: true,
-      message: `User role updated to ${role}`,
+      message: `User role updated to ${normalizedRole}`,
       emailNotice: roleEmailNotice || 'No role email sent',
       user: {
         _id: user._id,

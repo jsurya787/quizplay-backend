@@ -16,7 +16,11 @@ import { OtpService } from './otp/otp/otp.service';
 import { SignupDto } from './dto/signup.dto';
 import { UpdateProfileDto } from './dto/update-profile.dto';
 import { EmailSenderService } from 'src/mail/email-sender.service';
-import { buildWelcomeEmailTemplate } from 'src/mail/templates';
+import {
+  buildLoginNotificationEmailTemplate,
+  buildPasswordChangedEmailTemplate,
+  buildWelcomeEmailTemplate,
+} from 'src/mail/templates';
 
 const SALT_ROUNDS = 10;
 
@@ -34,6 +38,18 @@ export class AuthService {
     private readonly otpService: OtpService,
     private readonly emailSender: EmailSenderService,
   ) {}
+
+  private getGoogleTokenAudiences(): string[] {
+    return [
+      process.env.GOOGLE_CLIENT_ID,
+      process.env.GOOGLE_WEB_CLIENT_ID,
+      process.env.GOOGLE_ANDROID_CLIENT_ID,
+      process.env.GOOGLE_IOS_CLIENT_ID,
+      ...(process.env.GOOGLE_CLIENT_IDS || '').split(','),
+    ]
+      .map((clientId) => clientId?.trim())
+      .filter((clientId): clientId is string => Boolean(clientId));
+  }
 
   private resolveGoogleRedirectUri(clientOriginOrReferrer: string): string {
     const fallback = 'http://localhost:4200/auth/google/callback';
@@ -104,7 +120,7 @@ export class AuthService {
 
       const ticket = await this.googleClient.verifyIdToken({
         idToken: id_token,
-        audience: process.env.GOOGLE_CLIENT_ID!,
+        audience: this.getGoogleTokenAudiences(),
       });
 
       const googlePayload = ticket.getPayload();
@@ -120,6 +136,7 @@ export class AuthService {
       if (isNewUser) {
         await this.sendWelcomeEmail(user);
       }
+      await this.sendLoginNotificationEmail(user);
       return { ...(await this.generateTokens(user)), user: this.buildUserData(user) };
     } catch (error) {
       const exchangeError = axios.isAxiosError(error) ? error.response?.data : null;
@@ -263,6 +280,8 @@ export class AuthService {
       throw new ForbiddenException('Your account is inactive. Please contact admin.');
     }
 
+    await this.sendLoginNotificationEmail(user);
+
     // 3. Generate Tokens
     return { ...(await this.generateTokens(user)), user: this.buildUserData(user) };
   }
@@ -276,6 +295,8 @@ export class AuthService {
     if (user?.isActive === false) {
       throw new ForbiddenException('Your account is inactive. Please contact admin.');
     }
+
+    await this.sendLoginNotificationEmail(user);
 
     return { ...(await this.generateTokens(user)), user: this.buildUserData(user) };
   }
@@ -311,6 +332,7 @@ export class AuthService {
     const hashedPassword = await bcrypt.hash(password, SALT_ROUNDS);
 
     await this.userService.updatePassword(userId, hashedPassword);
+    await this.sendPasswordChangedEmail(user);
 
     return {
       success: true,
@@ -347,7 +369,7 @@ export class AuthService {
     try {
       const ticket = await this.googleClient.verifyIdToken({
         idToken,
-        audience: process.env.GOOGLE_CLIENT_ID!,
+        audience: this.getGoogleTokenAudiences(),
       });
 
       const payload = ticket.getPayload();
@@ -365,6 +387,7 @@ export class AuthService {
       if (isNewUser) {
         await this.sendWelcomeEmail(user);
       }
+      await this.sendLoginNotificationEmail(user);
 
       return {
         ...(await this.generateTokens(user)),
@@ -403,6 +426,54 @@ export class AuthService {
 
     if (!sent) {
       this.logger.warn(`Welcome email failed for ${user.email}`);
+    }
+  }
+
+  private async sendLoginNotificationEmail(user: any) {
+    if (!user?.email) {
+      return;
+    }
+
+    const { appName, appLogoUrl, webUrl } = this.emailSender.getBranding();
+    const template = buildLoginNotificationEmailTemplate({
+      appName,
+      appLogoUrl,
+      webUrl,
+      firstName: user.firstName || user.name,
+    });
+
+    const sent = await this.emailSender.sendTemplatedEmail(
+      user.email,
+      template,
+      appName,
+    );
+
+    if (!sent) {
+      this.logger.warn(`Login notification email failed for ${user.email}`);
+    }
+  }
+
+  private async sendPasswordChangedEmail(user: any) {
+    if (!user?.email) {
+      return;
+    }
+
+    const { appName, appLogoUrl, webUrl } = this.emailSender.getBranding();
+    const template = buildPasswordChangedEmailTemplate({
+      appName,
+      appLogoUrl,
+      webUrl,
+      firstName: user.firstName || user.name,
+    });
+
+    const sent = await this.emailSender.sendTemplatedEmail(
+      user.email,
+      template,
+      appName,
+    );
+
+    if (!sent) {
+      this.logger.warn(`Password changed email failed for ${user.email}`);
     }
   }
 
