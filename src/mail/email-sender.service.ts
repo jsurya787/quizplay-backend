@@ -6,53 +6,19 @@ import { join } from 'path';
 import { Attachment } from 'nodemailer/lib/mailer';
 import SMTPTransport from 'nodemailer/lib/smtp-transport';
 import { EmailTemplate } from './templates';
-import { lookup as dnsLookup, setDefaultResultOrder } from 'dns';
-
-type LookupCallback = (
-  err: NodeJS.ErrnoException | null,
-  address: string,
-  family: number,
-) => void;
+import { isIP } from 'net';
+import { promises as dns, setDefaultResultOrder } from 'dns';
 
 @Injectable()
 export class EmailSenderService {
   private readonly logoCid = 'quizplay-logo';
   private readonly logger = new Logger(EmailSenderService.name);
-  private readonly transporter: nodemailer.Transporter;
 
   constructor(private readonly configService: ConfigService) {
     const emailUser = this.configService.get<string>('EMAIL_USER');
     const emailPass = this.configService.get<string>('EMAIL_PASS');
-    const smtpHost = this.configService.get<string>('EMAIL_SMTP_HOST') || 'smtp.gmail.com';
-    const smtpPort = Number(this.configService.get<string>('EMAIL_SMTP_PORT') || 587);
 
     setDefaultResultOrder('ipv4first');
-
-    const smtpOptions: SMTPTransport.Options & {
-      family: 4;
-      lookup: (hostname: string, options: unknown, callback: LookupCallback) => void;
-    } = {
-      host: smtpHost,
-      port: smtpPort,
-      secure: smtpPort === 465,
-      requireTLS: smtpPort !== 465,
-      family: 4,
-      connectionTimeout: 10000,
-      greetingTimeout: 10000,
-      socketTimeout: 20000,
-      auth: {
-        user: emailUser,
-        pass: emailPass,
-      },
-      tls: {
-        servername: smtpHost,
-      },
-      lookup: (_hostname, _options, callback) => {
-        dnsLookup(smtpHost, { family: 4 }, callback);
-      },
-    };
-
-    this.transporter = nodemailer.createTransport(smtpOptions);
 
     if (!emailUser || !emailPass) {
       this.logger.error('Email credentials are missing. Check EMAIL_USER and EMAIL_PASS.');
@@ -75,7 +41,12 @@ export class EmailSenderService {
     const senderName = appName || this.configService.get<string>('APP_NAME') || 'QuizPlay';
 
     try {
-      const info = await this.transporter.sendMail({
+      const { transporter, debug } = await this.createTransporter();
+      this.logger.log(
+        `Email config: user=${this.maskEmail(debug.emailUser)} passSet=${debug.passSet} host=${debug.smtpHost} port=${debug.smtpPort} secure=${debug.secure} resolvedHost=${debug.resolvedHost} resolvedFamily=${debug.resolvedFamily}`,
+      );
+
+      const info = await transporter.sendMail({
         from: `"${senderName}" <${this.configService.get<string>('EMAIL_USER')}>`,
         to,
         subject: template.subject,
@@ -92,6 +63,92 @@ export class EmailSenderService {
       );
       return false;
     }
+  }
+
+  private async createTransporter(): Promise<{
+    transporter: nodemailer.Transporter;
+    debug: {
+      emailUser?: string;
+      passSet: boolean;
+      smtpHost: string;
+      smtpPort: number;
+      secure: boolean;
+      resolvedHost: string;
+      resolvedFamily: 4 | 6 | 'unknown';
+    };
+  }> {
+    const emailUser = this.configService.get<string>('EMAIL_USER');
+    const emailPass = this.configService.get<string>('EMAIL_PASS');
+    const smtpHost = this.configService.get<string>('EMAIL_SMTP_HOST') || 'smtp.gmail.com';
+    const smtpPort = Number(this.configService.get<string>('EMAIL_SMTP_PORT') || 587);
+    const secure = smtpPort === 465;
+    const resolvedHost = await this.resolveSmtpHostToIpv4(smtpHost);
+    const resolvedFamily = isIP(resolvedHost) === 4 ? 4 : 'unknown';
+
+    const smtpOptions: SMTPTransport.Options & { family: 4 } = {
+      host: resolvedHost,
+      port: smtpPort,
+      secure,
+      requireTLS: !secure,
+      family: 4,
+      connectionTimeout: 10000,
+      greetingTimeout: 10000,
+      socketTimeout: 20000,
+      auth: {
+        user: emailUser,
+        pass: emailPass,
+      },
+      tls: {
+        servername: smtpHost,
+      },
+    };
+
+    return {
+      transporter: nodemailer.createTransport(smtpOptions),
+      debug: {
+        emailUser,
+        passSet: Boolean(emailPass),
+        smtpHost,
+        smtpPort,
+        secure,
+        resolvedHost,
+        resolvedFamily,
+      },
+    };
+  }
+
+  private async resolveSmtpHostToIpv4(smtpHost: string): Promise<string> {
+    if (isIP(smtpHost)) {
+      return smtpHost;
+    }
+
+    try {
+      const addresses = await dns.resolve4(smtpHost);
+      if (addresses.length > 0) {
+        return addresses[0];
+      }
+    } catch (error: any) {
+      this.logger.error(
+        `Failed to resolve IPv4 for SMTP host ${smtpHost}: ${error?.code || error?.message || 'unknown error'}`,
+        error?.stack,
+      );
+    }
+
+    return smtpHost;
+  }
+
+  private maskEmail(email?: string): string {
+    if (!email) {
+      return 'missing';
+    }
+
+    const [name, domain] = email.split('@');
+    if (!domain) {
+      return 'set-invalid-format';
+    }
+
+    const visible = name.slice(0, 2);
+    return `${visible}${'*'.repeat(Math.max(name.length - 2, 1))}@${domain}`;
   }
 
   private resolveEmailLogo(): { appLogoUrl: string; attachments: Attachment[] } {
