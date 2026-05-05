@@ -6,7 +6,13 @@ import { join } from 'path';
 import { Attachment } from 'nodemailer/lib/mailer';
 import SMTPTransport from 'nodemailer/lib/smtp-transport';
 import { EmailTemplate } from './templates';
-import { setDefaultResultOrder } from 'dns';
+import { lookup as dnsLookup, setDefaultResultOrder } from 'dns';
+
+type LookupCallback = (
+  err: NodeJS.ErrnoException | null,
+  address: string,
+  family: number,
+) => void;
 
 @Injectable()
 export class EmailSenderService {
@@ -17,13 +23,19 @@ export class EmailSenderService {
   constructor(private readonly configService: ConfigService) {
     const emailUser = this.configService.get<string>('EMAIL_USER');
     const emailPass = this.configService.get<string>('EMAIL_PASS');
+    const smtpHost = this.configService.get<string>('EMAIL_SMTP_HOST') || 'smtp.gmail.com';
+    const smtpPort = Number(this.configService.get<string>('EMAIL_SMTP_PORT') || 587);
 
     setDefaultResultOrder('ipv4first');
 
-    const smtpOptions: SMTPTransport.Options & { family: 4 } = {
-      host: 'smtp.gmail.com',
-      port: 465,
-      secure: true,
+    const smtpOptions: SMTPTransport.Options & {
+      family: 4;
+      lookup: (hostname: string, options: unknown, callback: LookupCallback) => void;
+    } = {
+      host: smtpHost,
+      port: smtpPort,
+      secure: smtpPort === 465,
+      requireTLS: smtpPort !== 465,
       family: 4,
       connectionTimeout: 10000,
       greetingTimeout: 10000,
@@ -33,7 +45,10 @@ export class EmailSenderService {
         pass: emailPass,
       },
       tls: {
-        servername: 'smtp.gmail.com',
+        servername: smtpHost,
+      },
+      lookup: (_hostname, _options, callback) => {
+        dnsLookup(smtpHost, { family: 4 }, callback);
       },
     };
 
