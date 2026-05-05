@@ -16,7 +16,9 @@ export class EmailSenderService {
 
   constructor(private readonly configService: ConfigService) {
     const emailUser = this.configService.get<string>('EMAIL_USER');
-    const emailPass = this.configService.get<string>('EMAIL_PASS');
+    const emailPass =
+      this.configService.get<string>('EMAIL_PASS') ||
+      this.configService.get<string>('EMAIL_PASS_01');
 
     setDefaultResultOrder('ipv4first');
 
@@ -37,6 +39,18 @@ export class EmailSenderService {
     template: EmailTemplate,
     appName?: string,
   ): Promise<boolean> {
+    const provider = (this.configService.get<string>('EMAIL_PROVIDER') || 'smtp')
+      .trim()
+      .toLowerCase();
+
+    if (provider === 'resend') {
+      return this.sendViaResend(to, template, appName);
+    }
+
+    if (provider === 'brevo') {
+      return this.sendViaBrevo(to, template, appName);
+    }
+
     const logoConfig = this.resolveEmailLogo();
     const senderName = appName || this.configService.get<string>('APP_NAME') || 'QuizPlay';
 
@@ -65,6 +79,119 @@ export class EmailSenderService {
     }
   }
 
+  private async sendViaResend(
+    to: string,
+    template: EmailTemplate,
+    appName?: string,
+  ): Promise<boolean> {
+    const apiKey = this.configService.get<string>('RESEND_API_KEY');
+    const fromEmail =
+      this.configService.get<string>('EMAIL_FROM') ||
+      this.configService.get<string>('EMAIL_USER');
+    const senderName = appName || this.configService.get<string>('APP_NAME') || 'QuizPlay';
+
+    this.logger.log(
+      `Email config: provider=resend from=${this.maskEmail(fromEmail)} apiKeySet=${Boolean(apiKey)}`,
+    );
+
+    if (!apiKey || !fromEmail) {
+      this.logger.error('Resend email config missing. Check RESEND_API_KEY and EMAIL_FROM.');
+      return false;
+    }
+
+    try {
+      const response = await fetch('https://api.resend.com/emails', {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${apiKey}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          from: `${senderName} <${fromEmail}>`,
+          to: [to],
+          subject: template.subject,
+          text: template.text,
+          html: template.html,
+        }),
+      });
+
+      const responseText = await response.text();
+      if (!response.ok) {
+        this.logger.error(
+          `Resend failed for ${to}: status=${response.status} body=${this.truncateLog(responseText)}`,
+        );
+        return false;
+      }
+
+      this.logger.log(`Email accepted for ${to} by Resend. response=${this.truncateLog(responseText)}`);
+      return true;
+    } catch (error: any) {
+      this.logger.error(
+        `Resend failed for ${to}: ${error?.code || error?.message || 'unknown error'}`,
+        error?.stack,
+      );
+      return false;
+    }
+  }
+
+  private async sendViaBrevo(
+    to: string,
+    template: EmailTemplate,
+    appName?: string,
+  ): Promise<boolean> {
+    const apiKey = this.configService.get<string>('BREVO_API_KEY');
+    const fromEmail =
+      this.configService.get<string>('EMAIL_FROM') ||
+      this.configService.get<string>('EMAIL_USER');
+    const senderName = appName || this.configService.get<string>('APP_NAME') || 'QuizPlay';
+
+    this.logger.log(
+      `Email config: provider=brevo from=${this.maskEmail(fromEmail)} apiKeySet=${Boolean(apiKey)}`,
+    );
+
+    if (!apiKey || !fromEmail) {
+      this.logger.error('Brevo email config missing. Check BREVO_API_KEY and EMAIL_FROM.');
+      return false;
+    }
+
+    try {
+      const response = await fetch('https://api.brevo.com/v3/smtp/email', {
+        method: 'POST',
+        headers: {
+          'api-key': apiKey,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          sender: {
+            name: senderName,
+            email: fromEmail,
+          },
+          to: [{ email: to }],
+          subject: template.subject,
+          textContent: template.text,
+          htmlContent: template.html,
+        }),
+      });
+
+      const responseText = await response.text();
+      if (!response.ok) {
+        this.logger.error(
+          `Brevo failed for ${to}: status=${response.status} body=${this.truncateLog(responseText)}`,
+        );
+        return false;
+      }
+
+      this.logger.log(`Email accepted for ${to} by Brevo. response=${this.truncateLog(responseText)}`);
+      return true;
+    } catch (error: any) {
+      this.logger.error(
+        `Brevo failed for ${to}: ${error?.code || error?.message || 'unknown error'}`,
+        error?.stack,
+      );
+      return false;
+    }
+  }
+
   private async createTransporter(): Promise<{
     transporter: nodemailer.Transporter;
     debug: {
@@ -78,7 +205,9 @@ export class EmailSenderService {
     };
   }> {
     const emailUser = this.configService.get<string>('EMAIL_USER');
-    const emailPass = this.configService.get<string>('EMAIL_PASS');
+    const emailPass =
+      this.configService.get<string>('EMAIL_PASS') ||
+      this.configService.get<string>('EMAIL_PASS_01');
     const smtpHost = this.configService.get<string>('EMAIL_SMTP_HOST') || 'smtp.gmail.com';
     const smtpPort = Number(this.configService.get<string>('EMAIL_SMTP_PORT') || 587);
     const secure = smtpPort === 465;
@@ -149,6 +278,10 @@ export class EmailSenderService {
 
     const visible = name.slice(0, 2);
     return `${visible}${'*'.repeat(Math.max(name.length - 2, 1))}@${domain}`;
+  }
+
+  private truncateLog(value: string, maxLength = 500): string {
+    return value.length > maxLength ? `${value.slice(0, maxLength)}...` : value;
   }
 
   private resolveEmailLogo(): { appLogoUrl: string; attachments: Attachment[] } {
