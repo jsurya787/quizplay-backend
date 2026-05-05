@@ -87,12 +87,26 @@ export class OtpService {
       expiresInMinutes: 5,
     });
 
-    const ok = await this.emailSender.sendTemplatedEmail(email, template, appName);
-    if (ok) {
-      this.logger.log(`OTP sent to ${email}`);
-      return { message: 'OTP sent to email successfully' };
+    void this.sendEmailOtpInBackground(email, template, appName);
+
+    return { message: 'OTP email queued successfully' };
+  }
+
+  private async sendEmailOtpInBackground(
+    email: string,
+    template: ReturnType<typeof buildOtpEmailTemplate>,
+    appName: string,
+  ) {
+    try {
+      const ok = await this.emailSender.sendTemplatedEmail(email, template, appName);
+      if (ok) {
+        this.logger.log(`OTP sent to ${email}`);
+      } else {
+        this.logger.warn(`OTP email failed for ${email}`);
+      }
+    } catch (error: any) {
+      this.logger.error(`OTP email failed for ${email}`, error?.stack);
     }
-    throw new BadRequestException('Failed to send OTP email');
   }
 
   async verifyOtp(identifier: string, otp: string, type: 'phone' | 'email' = 'phone') {

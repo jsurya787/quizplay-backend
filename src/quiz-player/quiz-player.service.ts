@@ -3,6 +3,7 @@ import {
   BadRequestException,
   NotFoundException,
   ForbiddenException,
+  Logger,
 } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model, Types } from 'mongoose';
@@ -13,6 +14,8 @@ import {
   QuizAttemptDocument,
 } from './quiz-attempt.schema';
 import { redis } from 'src/redis/redis.provider';
+import { EmailSenderService } from 'src/mail/email-sender.service';
+import { buildQuizResultEmailTemplate } from 'src/mail/templates';
 
 type QuestionResult = {
   questionId: Types.ObjectId;
@@ -32,6 +35,8 @@ type QuestionResult = {
 
 @Injectable()
 export class QuizPlayerService {
+  private readonly logger = new Logger(QuizPlayerService.name);
+
   constructor(
     @InjectModel(User.name)
     private readonly userModel: Model<UserDocument>,
@@ -41,6 +46,8 @@ export class QuizPlayerService {
 
     @InjectModel(QuizAttempt.name)
     private readonly attemptModel: Model<QuizAttemptDocument>,
+
+    private readonly emailSender: EmailSenderService,
   ) {}
 
   async getTeacherStats(teacherId: string, batchIds: string[]) {
@@ -300,6 +307,19 @@ export class QuizPlayerService {
 
     await attempt.save();
 
+    if (!guestSessionId && attempt.userId) {
+      void this.sendQuizResultEmailInBackground({
+        userId: attempt.userId.toString(),
+        quizTitle: quiz.title,
+        totalMarks: quiz.totalMarks,
+        score,
+        correct,
+        wrong,
+        skipped,
+        accuracy,
+      });
+    }
+
     // Increment Redis Counter for authenticated users
     if (!guestSessionId && attempt.userId) {
       const cacheKey = `user:${attempt.userId.toString()}:attemptedQuizzes`;
@@ -321,6 +341,59 @@ export class QuizPlayerService {
       accuracy,
       questions: questionResults,
     };
+  }
+
+  private async sendQuizResultEmailInBackground(data: {
+    userId: string;
+    quizTitle: string;
+    totalMarks: number;
+    score: number;
+    correct: number;
+    wrong: number;
+    skipped: number;
+    accuracy: number;
+  }) {
+    try {
+      const user = await this.userModel
+        .findById(data.userId)
+        .select('firstName lastName name email')
+        .lean();
+
+      if (!user?.email) {
+        return;
+      }
+
+      const firstName =
+        user.firstName ||
+        [user.firstName, user.lastName].filter(Boolean).join(' ').trim() ||
+        user.name;
+      const { appName, appLogoUrl, webUrl } = this.emailSender.getBranding();
+      const template = buildQuizResultEmailTemplate({
+        appName,
+        appLogoUrl,
+        webUrl,
+        firstName,
+        quizTitle: data.quizTitle,
+        totalMarks: data.totalMarks,
+        score: data.score,
+        correct: data.correct,
+        wrong: data.wrong,
+        skipped: data.skipped,
+        accuracy: data.accuracy,
+      });
+
+      const sent = await this.emailSender.sendTemplatedEmail(
+        user.email,
+        template,
+        appName,
+      );
+
+      if (!sent) {
+        this.logger.warn(`Quiz result email failed for ${user.email}`);
+      }
+    } catch (error: any) {
+      this.logger.error('Quiz result email failed', error?.stack);
+    }
   }
 
   async getAttemptedQuizzesCount(userId: string) {

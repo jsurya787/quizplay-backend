@@ -3,6 +3,7 @@ import {
   OnModuleInit,
   BadRequestException,
   NotFoundException,
+  Logger,
 } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model, Types } from 'mongoose';
@@ -26,6 +27,7 @@ const SALT_ROUNDS = 10;
 
 @Injectable()
 export class UserService implements OnModuleInit {
+  private readonly logger = new Logger(UserService.name);
   public adminsCache: string[] = [];
   private adminsCacheAt = 0;
   private readonly CACHE_TTL = 24 * 60 * 1000; // 1 day in  milliseconds 
@@ -275,7 +277,6 @@ export class UserService implements OnModuleInit {
     await redis.expire(`user:${student._id}:teachers`, 86400); // 24h cache
 
     const { appName, appLogoUrl, webUrl } = this.emailSender.getBranding();
-    let studentEmailSent = false;
 
     if (isNewLink && student.email) {
       const studentName = student.firstName || 'Student';
@@ -284,7 +285,7 @@ export class UserService implements OnModuleInit {
         teacher.name ||
         'Your Teacher';
 
-      studentEmailSent = await this.sendStudentAddedEmail({
+      void this.sendStudentAddedEmail({
         studentEmail: student.email,
         studentName,
         teacherName: teacherDisplayName,
@@ -300,9 +301,7 @@ export class UserService implements OnModuleInit {
       message: isNewLink ? 'Student added successfully' : 'Student already linked',
       emailNotice:
         isNewLink && student.email
-          ? studentEmailSent
-            ? `Notification email sent to ${student.email}`
-            : `Student added, but failed to send email to ${student.email}`
+          ? `Notification email queued for ${student.email}`
           : 'No email sent',
       student: {
         _id: student._id,
@@ -618,14 +617,51 @@ export class UserService implements OnModuleInit {
     existingUser.role = normalizedRole;
     const user = await existingUser.save();
 
-    const { appName, appLogoUrl, webUrl } = this.emailSender.getBranding();
-    let roleEmailNotice = '';
-
     if (
       previousRole !== UserRole.TEACHER &&
       normalizedRole === UserRole.TEACHER &&
       user.email
     ) {
+      void this.sendRoleUpdateEmailsInBackground({
+        user,
+        role: normalizedRole,
+        actorAdminId,
+        actorAdminEmail,
+      });
+    }
+
+    // Clear cache might be needed if you cache user details by ID
+    // For now, let's just ensure we return success
+    
+    // If we had a specific user cache key, we'd delete it here:
+    // await redis.del(`user:${userId}`);
+
+    return {
+      success: true,
+      message: `User role updated to ${normalizedRole}`,
+      emailNotice:
+        previousRole !== UserRole.TEACHER &&
+        normalizedRole === UserRole.TEACHER &&
+        user.email
+          ? 'Role email queued'
+          : 'No role email sent',
+      user: {
+        _id: user._id,
+        email: user.email,
+        role: user.role
+      }
+    };
+  }
+
+  private async sendRoleUpdateEmailsInBackground(data: {
+    user: UserDocument;
+    role: UserRole;
+    actorAdminId?: string;
+    actorAdminEmail?: string;
+  }) {
+    try {
+      const { user, role, actorAdminId, actorAdminEmail } = data;
+      const { appName, appLogoUrl, webUrl } = this.emailSender.getBranding();
       const adminUser = actorAdminId
         ? await this.userModel.findById(actorAdminId).select('firstName lastName name email').lean()
         : null;
@@ -638,50 +674,36 @@ export class UserService implements OnModuleInit {
         user.name ||
         'Teacher';
 
-      const promotedMailSent = await this.sendTeacherPromotionEmail({
-        teacherEmail: user.email,
-        teacherName: targetName,
-        adminName: adminDisplayName,
-        appName,
-        appLogoUrl,
-        webUrl,
-      });
-
-      const adminEmail = actorAdminEmail || adminUser?.email;
-      let adminAuditSent = false;
-      if (adminEmail) {
-        adminAuditSent = await this.sendAdminRoleUpdateEmail({
-          adminEmail,
+      const emailTasks: Promise<boolean>[] = [
+        this.sendTeacherPromotionEmail({
+          teacherEmail: user.email || '',
+          teacherName: targetName,
           adminName: adminDisplayName,
-          targetName,
-          updatedRole: normalizedRole,
           appName,
           appLogoUrl,
           webUrl,
-        });
+        }),
+      ];
+
+      const adminEmail = actorAdminEmail || adminUser?.email;
+      if (adminEmail) {
+        emailTasks.push(
+          this.sendAdminRoleUpdateEmail({
+            adminEmail,
+            adminName: adminDisplayName,
+            targetName,
+            updatedRole: role,
+            appName,
+            appLogoUrl,
+            webUrl,
+          }),
+        );
       }
 
-      roleEmailNotice = promotedMailSent
-        ? `Promotion email sent to ${user.email}${adminEmail ? adminAuditSent ? ` and audit email sent to ${adminEmail}` : `, but failed to send audit email to ${adminEmail}` : ''}`
-        : `Role updated, but failed to send promotion email to ${user.email}`;
+      await Promise.all(emailTasks);
+    } catch (error: any) {
+      this.logger.error('Failed to send role update emails', error?.stack);
     }
-
-    // Clear cache might be needed if you cache user details by ID
-    // For now, let's just ensure we return success
-    
-    // If we had a specific user cache key, we'd delete it here:
-    // await redis.del(`user:${userId}`);
-
-    return {
-      success: true,
-      message: `User role updated to ${normalizedRole}`,
-      emailNotice: roleEmailNotice || 'No role email sent',
-      user: {
-        _id: user._id,
-        email: user.email,
-        role: user.role
-      }
-    };
   }
 
   async setUserActiveState(
@@ -812,47 +834,21 @@ export class UserService implements OnModuleInit {
       teacher.name ||
       'Your Teacher';
 
-    let sent = 0;
-    let failed = 0;
-    const batchSize = 20;
-
-    for (let i = 0; i < students.length; i += batchSize) {
-      const batch = students.slice(i, i + batchSize);
-      const results = await Promise.all(
-        batch.map(async (student) => {
-          const studentName =
-            [student.firstName, student.lastName].filter(Boolean).join(' ').trim() ||
-            student.name ||
-            'Student';
-
-          const template = buildQuizPublishedForStudentTemplate({
-            appName,
-            appLogoUrl,
-            webUrl,
-            studentName,
-            teacherName,
-            quizTitle: input.quizTitle,
-            difficulty: input.difficulty,
-          });
-
-          return this.sendTemplatedEmail(student.email || '', template, appName);
-        }),
-      );
-
-      for (const ok of results) {
-        if (ok) sent += 1;
-        else failed += 1;
-      }
-    }
+    void this.sendQuizPublishedEmailsInBackground({
+      students,
+      teacherName,
+      quizTitle: input.quizTitle,
+      difficulty: input.difficulty,
+      appName,
+      appLogoUrl,
+      webUrl,
+    });
 
     return {
       success: true,
       totalRecipients: students.length,
-      sent,
-      failed,
-      message: failed
-        ? `Notification sent with partial failures (${sent}/${students.length})`
-        : `Notification sent to all associated students (${sent})`,
+      queued: students.length,
+      message: `Notification emails queued for ${students.length} associated students`,
     };
   }
 
@@ -880,6 +876,59 @@ export class UserService implements OnModuleInit {
     return students.map((s: any) => s._id.toString());
   }
 
+  private async sendQuizPublishedEmailsInBackground(data: {
+    students: Array<{
+      firstName?: string;
+      lastName?: string;
+      name?: string;
+      email?: string;
+    }>;
+    teacherName: string;
+    quizTitle: string;
+    difficulty?: string;
+    appName: string;
+    appLogoUrl?: string;
+    webUrl?: string;
+  }) {
+    try {
+      const batchSize = 20;
+
+      for (let i = 0; i < data.students.length; i += batchSize) {
+        const batch = data.students.slice(i, i + batchSize);
+
+        await Promise.all(
+          batch.map(async (student) => {
+            if (!student.email) {
+              return;
+            }
+
+            const studentName =
+              [student.firstName, student.lastName].filter(Boolean).join(' ').trim() ||
+              student.name ||
+              'Student';
+
+            const template = buildQuizPublishedForStudentTemplate({
+              appName: data.appName,
+              appLogoUrl: data.appLogoUrl,
+              webUrl: data.webUrl,
+              studentName,
+              teacherName: data.teacherName,
+              quizTitle: data.quizTitle,
+              difficulty: data.difficulty,
+            });
+
+            const sent = await this.sendTemplatedEmail(student.email, template, data.appName);
+            if (!sent) {
+              this.logger.warn(`Quiz notification email failed for ${student.email}`);
+            }
+          }),
+        );
+      }
+    } catch (error: any) {
+      this.logger.error('Failed to send quiz notification emails', error?.stack);
+    }
+  }
+
   private async sendStudentAddedEmail(data: {
     studentEmail: string;
     studentName: string;
@@ -898,7 +947,14 @@ export class UserService implements OnModuleInit {
       teacherEmail: data.teacherEmail,
     });
 
-    return this.sendTemplatedEmail(data.studentEmail, template, data.appName);
+    try {
+      const sent = await this.sendTemplatedEmail(data.studentEmail, template, data.appName);
+      if (!sent) {
+        this.logger.warn(`Student added email failed for ${data.studentEmail}`);
+      }
+    } catch (error: any) {
+      this.logger.error(`Student added email failed for ${data.studentEmail}`, error?.stack);
+    }
   }
 
   private async sendTeacherPromotionEmail(data: {

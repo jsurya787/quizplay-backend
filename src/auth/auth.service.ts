@@ -120,7 +120,8 @@ export class AuthService {
 
       const ticket = await this.googleClient.verifyIdToken({
         idToken: id_token,
-        audience: this.getGoogleTokenAudiences(),
+        audience: process.env.GOOGLE_CLIENT_ID!,
+       // audience: this.getGoogleTokenAudiences(),
       });
 
       const googlePayload = ticket.getPayload();
@@ -134,9 +135,9 @@ export class AuthService {
         throw new ForbiddenException('Your account is inactive. Please contact admin.');
       }
       if (isNewUser) {
-        await this.sendWelcomeEmail(user);
+        void this.sendWelcomeEmail(user);
       }
-      await this.sendLoginNotificationEmail(user);
+      void this.sendLoginNotificationEmail(user);
       return { ...(await this.generateTokens(user)), user: this.buildUserData(user) };
     } catch (error) {
       const exchangeError = axios.isAxiosError(error) ? error.response?.data : null;
@@ -271,7 +272,7 @@ export class AuthService {
         user.isVerified = true;
       }
       if (isFirstVerification) {
-        await this.sendWelcomeEmail(user);
+        void this.sendWelcomeEmail(user);
       }
     } else {
       user = await this.userService.findOrCreateByPhone(identifier);
@@ -280,7 +281,7 @@ export class AuthService {
       throw new ForbiddenException('Your account is inactive. Please contact admin.');
     }
 
-    await this.sendLoginNotificationEmail(user);
+    void this.sendLoginNotificationEmail(user);
 
     // 3. Generate Tokens
     return { ...(await this.generateTokens(user)), user: this.buildUserData(user) };
@@ -296,7 +297,7 @@ export class AuthService {
       throw new ForbiddenException('Your account is inactive. Please contact admin.');
     }
 
-    await this.sendLoginNotificationEmail(user);
+    void this.sendLoginNotificationEmail(user);
 
     return { ...(await this.generateTokens(user)), user: this.buildUserData(user) };
   }
@@ -332,7 +333,7 @@ export class AuthService {
     const hashedPassword = await bcrypt.hash(password, SALT_ROUNDS);
 
     await this.userService.updatePassword(userId, hashedPassword);
-    await this.sendPasswordChangedEmail(user);
+    void this.sendPasswordChangedEmail(user);
 
     return {
       success: true,
@@ -369,7 +370,8 @@ export class AuthService {
     try {
       const ticket = await this.googleClient.verifyIdToken({
         idToken,
-        audience: this.getGoogleTokenAudiences(),
+        audience: process.env.GOOGLE_CLIENT_ID!,
+       // audience: this.getGoogleTokenAudiences(),
       });
 
       const payload = ticket.getPayload();
@@ -385,9 +387,9 @@ export class AuthService {
         );
       }
       if (isNewUser) {
-        await this.sendWelcomeEmail(user);
+        void this.sendWelcomeEmail(user);
       }
-      await this.sendLoginNotificationEmail(user);
+      void this.sendLoginNotificationEmail(user);
 
       return {
         ...(await this.generateTokens(user)),
@@ -410,22 +412,26 @@ export class AuthService {
       return;
     }
 
-    const { appName, appLogoUrl, webUrl } = this.emailSender.getBranding();
-    const template = buildWelcomeEmailTemplate({
-      appName,
-      appLogoUrl,
-      webUrl,
-      firstName: user.firstName || user.name,
-    });
+    try {
+      const { appName, appLogoUrl, webUrl } = this.emailSender.getBranding();
+      const template = buildWelcomeEmailTemplate({
+        appName,
+        appLogoUrl,
+        webUrl,
+        firstName: user.firstName || user.name,
+      });
 
-    const sent = await this.emailSender.sendTemplatedEmail(
-      user.email,
-      template,
-      appName,
-    );
+      const sent = await this.emailSender.sendTemplatedEmail(
+        user.email,
+        template,
+        appName,
+      );
 
-    if (!sent) {
-      this.logger.warn(`Welcome email failed for ${user.email}`);
+      if (!sent) {
+        this.logger.warn(`Welcome email failed for ${user.email}`);
+      }
+    } catch (error: any) {
+      this.logger.error(`Welcome email failed for ${user.email}`, error?.stack);
     }
   }
 
@@ -434,22 +440,26 @@ export class AuthService {
       return;
     }
 
-    const { appName, appLogoUrl, webUrl } = this.emailSender.getBranding();
-    const template = buildLoginNotificationEmailTemplate({
-      appName,
-      appLogoUrl,
-      webUrl,
-      firstName: user.firstName || user.name,
-    });
+    try {
+      const { appName, appLogoUrl, webUrl } = this.emailSender.getBranding();
+      const template = buildLoginNotificationEmailTemplate({
+        appName,
+        appLogoUrl,
+        webUrl,
+        firstName: user.firstName || user.name,
+      });
 
-    const sent = await this.emailSender.sendTemplatedEmail(
-      user.email,
-      template,
-      appName,
-    );
+      const sent = await this.emailSender.sendTemplatedEmail(
+        user.email,
+        template,
+        appName,
+      );
 
-    if (!sent) {
-      this.logger.warn(`Login notification email failed for ${user.email}`);
+      if (!sent) {
+        this.logger.warn(`Login notification email failed for ${user.email}`);
+      }
+    } catch (error: any) {
+      this.logger.error(`Login notification email failed for ${user.email}`, error?.stack);
     }
   }
 
@@ -458,22 +468,26 @@ export class AuthService {
       return;
     }
 
-    const { appName, appLogoUrl, webUrl } = this.emailSender.getBranding();
-    const template = buildPasswordChangedEmailTemplate({
-      appName,
-      appLogoUrl,
-      webUrl,
-      firstName: user.firstName || user.name,
-    });
+    try {
+      const { appName, appLogoUrl, webUrl } = this.emailSender.getBranding();
+      const template = buildPasswordChangedEmailTemplate({
+        appName,
+        appLogoUrl,
+        webUrl,
+        firstName: user.firstName || user.name,
+      });
 
-    const sent = await this.emailSender.sendTemplatedEmail(
-      user.email,
-      template,
-      appName,
-    );
+      const sent = await this.emailSender.sendTemplatedEmail(
+        user.email,
+        template,
+        appName,
+      );
 
-    if (!sent) {
-      this.logger.warn(`Password changed email failed for ${user.email}`);
+      if (!sent) {
+        this.logger.warn(`Password changed email failed for ${user.email}`);
+      }
+    } catch (error: any) {
+      this.logger.error(`Password changed email failed for ${user.email}`, error?.stack);
     }
   }
 

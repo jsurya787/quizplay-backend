@@ -10,6 +10,7 @@ import { QuizPlayerService } from './quiz-player.service';
 import { GuestSessionModule } from '../guest-session/guest-session.module';
 import { UserModule } from '../user/user.module';
 import { QuizModule } from '../quiz/quiz.module';
+import { MailModule } from 'src/mail/mail.module';
 
 @Module({
   imports: [
@@ -21,6 +22,7 @@ import { QuizModule } from '../quiz/quiz.module';
     GuestSessionModule, 
     UserModule,
     QuizModule,
+    MailModule,
   ],
   controllers: [QuizPlayerController],
   providers: [QuizPlayerService],

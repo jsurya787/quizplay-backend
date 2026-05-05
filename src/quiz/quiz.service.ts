@@ -473,7 +473,7 @@ async findAll(
     const quiz = await this.quizModel
       .findById(quizId)
       .select(
-        'title difficulty status createdBy allowedUserIds visibility notifiedStudentIds',
+        'title difficulty status createdBy allowedUserIds allowedBatchIds visibility notifiedStudentIds',
       )
       .lean();
     if (!quiz) {

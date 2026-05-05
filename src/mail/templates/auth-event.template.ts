@@ -9,25 +9,25 @@ export function buildLoginNotificationEmailTemplate(
   input: AuthEventTemplateInput,
 ): EmailTemplate {
   const firstName = (input.firstName || 'there').trim();
-  const subject = `${input.appName}: New login`;
-  const text = `Hi ${firstName}, your ${input.appName} account was just logged in.`;
+  const subject = `🔐 ${input.appName}: Login successful`;
+  const text = `Hi ${firstName}, you just logged in to your ${input.appName} account. If this was you, you're all set. ✅`;
 
   const html = renderLightEmailLayout({
     appName: input.appName,
     appLogoUrl: input.appLogoUrl,
-    title: 'New login detected',
-    greeting: `Hi ${firstName},`,
-    intro: `Your ${input.appName} account was just logged in.`,
+    title: '🔐 Login successful',
+    greeting: `Hi ${firstName}, 👋`,
+    intro: `You just logged in to your ${input.appName} account.`,
     bodyHtml: `
       <div style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:10px;padding:14px 16px;margin:0 0 18px 0;">
         <p style="margin:0;font-size:14px;line-height:1.7;color:#166534;">
-          If this was you, no action is needed.
+          ✅ If this was you, no action is needed. Happy learning!
         </p>
       </div>
     `,
     ctaLabel: input.webUrl ? 'Open Account' : undefined,
     ctaUrl: input.webUrl,
-    footerNote: 'If this was not you, reset your password or contact support.',
+    footerNote: '⚠️ If this was not you, reset your password or contact support immediately.',
   });
 
   return { subject, text, html };

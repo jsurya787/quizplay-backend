@@ -6,3 +6,4 @@ export * from './admin.template';
 export * from './quiz-published.template';
 export * from './welcome.template';
 export * from './auth-event.template';
+export * from './quiz-result.template';
