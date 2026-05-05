@@ -4,7 +4,9 @@ import * as nodemailer from 'nodemailer';
 import { existsSync } from 'fs';
 import { join } from 'path';
 import { Attachment } from 'nodemailer/lib/mailer';
+import SMTPTransport from 'nodemailer/lib/smtp-transport';
 import { EmailTemplate } from './templates';
+import { setDefaultResultOrder } from 'dns';
 
 @Injectable()
 export class EmailSenderService {
@@ -16,8 +18,13 @@ export class EmailSenderService {
     const emailUser = this.configService.get<string>('EMAIL_USER');
     const emailPass = this.configService.get<string>('EMAIL_PASS');
 
-    this.transporter = nodemailer.createTransport({
-      service: 'gmail',
+    setDefaultResultOrder('ipv4first');
+
+    const smtpOptions: SMTPTransport.Options & { family: 4 } = {
+      host: 'smtp.gmail.com',
+      port: 465,
+      secure: true,
+      family: 4,
       connectionTimeout: 10000,
       greetingTimeout: 10000,
       socketTimeout: 20000,
@@ -25,7 +32,12 @@ export class EmailSenderService {
         user: emailUser,
         pass: emailPass,
       },
-    });
+      tls: {
+        servername: 'smtp.gmail.com',
+      },
+    };
+
+    this.transporter = nodemailer.createTransport(smtpOptions);
 
     if (!emailUser || !emailPass) {
       this.logger.error('Email credentials are missing. Check EMAIL_USER and EMAIL_PASS.');
