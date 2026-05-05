@@ -13,13 +13,23 @@ export class EmailSenderService {
   private readonly transporter: nodemailer.Transporter;
 
   constructor(private readonly configService: ConfigService) {
+    const emailUser = this.configService.get<string>('EMAIL_USER');
+    const emailPass = this.configService.get<string>('EMAIL_PASS');
+
     this.transporter = nodemailer.createTransport({
       service: 'gmail',
+      connectionTimeout: 10000,
+      greetingTimeout: 10000,
+      socketTimeout: 20000,
       auth: {
-        user: this.configService.get<string>('EMAIL_USER'),
-        pass: this.configService.get<string>('EMAIL_PASS'),
+        user: emailUser,
+        pass: emailPass,
       },
     });
+
+    if (!emailUser || !emailPass) {
+      this.logger.error('Email credentials are missing. Check EMAIL_USER and EMAIL_PASS.');
+    }
   }
 
   getBranding() {
@@ -38,7 +48,7 @@ export class EmailSenderService {
     const senderName = appName || this.configService.get<string>('APP_NAME') || 'QuizPlay';
 
     try {
-      await this.transporter.sendMail({
+      const info = await this.transporter.sendMail({
         from: `"${senderName}" <${this.configService.get<string>('EMAIL_USER')}>`,
         to,
         subject: template.subject,
@@ -46,9 +56,13 @@ export class EmailSenderService {
         html: template.html,
         attachments: logoConfig.attachments,
       });
+      this.logger.log(`Email accepted for ${to}. messageId=${info.messageId || 'unknown'}`);
       return true;
     } catch (error: any) {
-      this.logger.error(`Failed to send email to ${to}`, error?.stack);
+      this.logger.error(
+        `Failed to send email to ${to}: ${error?.code || error?.command || error?.message || 'unknown error'}`,
+        error?.stack,
+      );
       return false;
     }
   }
