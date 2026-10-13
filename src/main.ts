@@ -47,6 +47,7 @@ async function bootstrap() {
     // production
     'https://quizplay.co.in',
     'https://www.quizplay.co.in',
+    'https://quiz-play-frontend.onrender.com',
 
     // optional extra origins (comma-separated)
     ...parseCorsOrigins(process.env.CORS_ORIGINS),
